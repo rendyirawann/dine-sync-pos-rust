@@ -1,0 +1,54 @@
+{% extends "layout/app.html" %}
+{% block title %}Sinkronisasi — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        <h1 class="fw-bold fs-2 mb-6"><i class="ki-outline ki-arrows-circle fs-1 me-2"></i> Sinkronisasi Data (Local-First)</h1>
+        <div class="row g-5">
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100"><div class="card-body text-center p-10">
+                    <div id="status-badge">
+                        {% if online %}<span class="badge badge-light-success fs-4 px-5 py-3"><i class="ki-outline ki-wifi-home fs-2 me-2"></i> Server Pusat ONLINE</span>
+                        {% else %}<span class="badge badge-light-danger fs-4 px-5 py-3"><i class="ki-outline ki-cross-circle fs-2 me-2"></i> Server Pusat OFFLINE</span>{% endif %}
+                    </div>
+                    <div class="mt-8"><div class="fs-6 text-muted">Order tersimpan di perangkat, menunggu sinkron</div>
+                        <div class="fs-3qx fw-bold {% if pending > 0 %}text-warning{% else %}text-success{% endif %}" id="pending-count">{{ pending }}</div></div>
+                    <button class="btn btn-primary btn-lg mt-6 w-100" id="btn-sync"><i class="ki-outline ki-arrows-circle fs-2 me-2"></i> Sinkron Sekarang</button>
+                </div></div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100"><div class="card-body p-10">
+                    <h3 class="fw-bold mb-3">Mode Uji Offline</h3>
+                    <p class="text-muted fs-7">Untuk mendemokan local-first tanpa mematikan PostgreSQL: paksa aplikasi menganggap server pusat mati. Order baru di Kasir akan disimpan ke <b>perangkat ini (SQLite)</b>, lalu otomatis tersinkron saat mode dimatikan.</p>
+                    <div class="form-check form-switch form-check-custom form-check-solid mb-5">
+                        <input class="form-check-input h-30px w-50px" type="checkbox" id="toggle-offline" {% if forced_offline %}checked{% endif %}>
+                        <label class="form-check-label fw-bold ms-3" for="toggle-offline">Simulasikan Server Offline</label>
+                    </div>
+                    <div class="alert alert-info fs-7 mb-0"><i class="ki-outline ki-information-5 fs-3 me-2"></i> Auto-sync berjalan otomatis tiap 30 detik selama ada order pending &amp; server online.</div>
+                </div></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>var CSRF = "{{ csrf_token }}";</script>
+{% raw %}
+<script>
+    document.getElementById('btn-sync').addEventListener('click', function () {
+        const b = this; b.disabled = true; b.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Menyinkronkan...';
+        fetch('/admin/sync/now', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' }, body: new URLSearchParams({ _token: CSRF }) })
+            .then(r => r.json()).then(res => {
+                b.disabled = false; b.innerHTML = '<i class="ki-outline ki-arrows-circle fs-2 me-2"></i> Sinkron Sekarang';
+                if (res.success) { document.getElementById('pending-count').textContent = res.pending; Swal.fire('Selesai', res.synced + ' order tersinkron ke pusat. Sisa: ' + res.pending + '.', res.synced > 0 ? 'success' : 'info'); }
+                else Swal.fire('Gagal', res.error || 'Error (mungkin server pusat offline).', 'error');
+            });
+    });
+    document.getElementById('toggle-offline').addEventListener('change', function () {
+        fetch('/admin/sync/toggle', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' }, body: new URLSearchParams({ _token: CSRF }) })
+            .then(r => r.json()).then(res => { Swal.fire('Mode diubah', res.forced_offline ? 'SIMULASI OFFLINE aktif — order akan disimpan ke perangkat.' : 'Kembali ONLINE.', 'info').then(() => location.reload()); });
+    });
+</script>
+{% endraw %}
+{% endblock %}

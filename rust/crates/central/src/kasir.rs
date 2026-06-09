@@ -68,23 +68,23 @@ pub struct CreateOrderQuery {
 
 #[derive(Deserialize)]
 pub struct CartItem {
-    id: i64,
-    qty: i64,
-    price: i64,
-    subtotal: i64,
+    pub id: i64,
+    pub qty: i64,
+    pub price: i64,
+    pub subtotal: i64,
     #[serde(default)]
-    note: Option<String>,
+    pub note: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct StorePayload {
     #[serde(rename = "_token", default)]
-    csrf: String,
-    table_id: i64,
-    customer_name: String,
-    order_type: String,
-    payment_method: String, // cash | pay_later
-    cart: Vec<CartItem>,
+    pub csrf: String,
+    pub table_id: i64,
+    pub customer_name: String,
+    pub order_type: String,
+    pub payment_method: String, // cash | pay_later
+    pub cart: Vec<CartItem>,
 }
 
 #[derive(Deserialize)]
@@ -302,16 +302,21 @@ pub async fn store_order(
     if !auth::verify_csrf(&session, &payload.csrf).await {
         return (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({"success": false, "error": "Sesi kedaluwarsa"}))).into_response();
     }
-    match store_inner(&state, &payload).await {
-        Ok((order_id, kind)) => {
-            let message = if kind == "cash" {
-                "Pembayaran tunai berhasil!"
-            } else {
-                "Pesanan dikirim ke dapur. Pembayaran ditangguhkan (Pay Later)."
-            };
-            Json(json!({"success": true, "type": kind, "order_id": order_id, "message": message})).into_response()
+
+    // LOCAL-FIRST: kalau server pusat online → simpan ke pusat; kalau offline → simpan ke SQLite lokal + outbox.
+    if crate::sync::central_online(&state).await {
+        match store_inner(&state, &payload).await {
+            Ok((order_id, kind)) => {
+                let message = if kind == "cash" { "Pembayaran tunai berhasil!" } else { "Pesanan dikirim ke dapur (Pay Later)." };
+                Json(json!({"success": true, "type": kind, "order_id": order_id, "offline": false, "message": message})).into_response()
+            }
+            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"success": false, "error": e.to_string()}))).into_response(),
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"success": false, "error": e.to_string()}))).into_response(),
+    } else {
+        match crate::sync::store_order_local(&state, &payload).await {
+            Ok(kind) => Json(json!({"success": true, "type": kind, "order_id": serde_json::Value::Null, "offline": true, "message": "📴 Server offline — order disimpan di perangkat ini & akan disinkronkan otomatis saat server online."})).into_response(),
+            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"success": false, "error": e.to_string()}))).into_response(),
+        }
     }
 }
 

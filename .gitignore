@@ -28,3 +28,7 @@ Thumbs.db
 
 # Rust build artifacts
 /rust/target
+
+# SQLite DB lokal (per-device, local-first)
+/rust/crates/central/local.db
+/rust/crates/central/local.db-*

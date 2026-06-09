@@ -235,13 +235,13 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - **Acceptance:** ✅ **Terverifikasi end-to-end** — order tunai 25rb×2 → grand 55rb (pajak benar), paid, meja occupied, struk OK, **dashboard omzet Rp 55.000**; pay_later→unpaid→bayar-susulan→paid; clear ditolak saat item pending (400), sukses saat dapur selesai.
 - **Ditunda:** Midtrans (Fase 5), promo/diskon (opsional), potongan stok/HPP (Fase 4), status dapur real-time (Fase 4 kitchen).
 
-### Fase 3 — Local-First untuk slice Kasir *(INTI)*
-- [ ] Tambah SQLite lokal + jalankan app di device.
-- [ ] Konversi PK ke UUID untuk entitas tersinkron.
-- [ ] Bangun sync engine: outbox, push, pull, idempotency, tombstone.
-- [ ] Tombol "Sinkron Sekarang" + auto-sync + indikator status.
-- [ ] Aturan konflik: order (mudah) → stok delta (sulit).
-- **Acceptance:** matikan server pusat → kasir tetap jalan → nyalakan → data tersinkron tanpa dobel/hilang.
+### Fase 3 — Local-First *(INTI)* — 🟡 CORE SELESAI 2026-06-10 (write-path), sisanya berlanjut
+- [x] **SQLite lokal per-device** (`local.db`, dibuat saat startup) + Postgres `connect_lazy` (boot tetap jalan walau pusat mati).
+- [x] **Tangkap order offline**: saat pusat tak terjangkau, `store_order` → SQLite lokal (`store_order_local`), order pakai UUID (idempotensi).
+- [x] **Sync engine push** (`sync.rs`): order lokal → pusat, **idempoten via `ON CONFLICT (uuid)`** (re-sync tak dobel). Auto-sync 30 dtk + tombol "Sinkron Sekarang" + toggle simulasi offline (UI `/admin/sync`).
+- [x] **Acceptance INTI terverifikasi:** offline → order ke device (pusat tak berubah) → online → sync → pusat +1 → sync lagi → tetap (tanpa dobel). ✅
+- [ ] **Sisa (local-first penuh — pekerjaan besar):** read-side offline (dashboard/kasir/shift baca dari SQLite saat pusat mati), **pull sync** (master data menu/meja/kategori ditarik ke lokal agar kasir tampil offline), resolusi konflik **stok delta**, tombstone/hapus, merge multi-device.
+- **Catatan:** yang sudah jalan = jalur tulis offline (paling kritis untuk POS). Jalur baca-offline penuh + konflik stok adalah sisa terbesar.
 
 ### Fase 4 — Lebarkan Modul
 - [ ] Kitchen (+ real-time saat online).
@@ -278,7 +278,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [x] **Fase 0** — Fondasi ✅ 2026-06-09
 - [x] **Fase 1** — Auth + RBAC ✅ 2026-06-09
 - [x] **Fase 2** — Slice Kasir (online) ✅ 2026-06-10
-- [ ] **Fase 3** — Local-first Kasir (sync engine)
+- [~] **Fase 3** — Local-first (CORE/write-path ✅ 2026-06-10; read-offline + pull + konflik stok = sisa)
 - [ ] **Fase 4** — Lebarkan modul
 - [ ] **Fase 5** — Integrasi & polish
 - [ ] **Fase 6** — Cutover
@@ -288,6 +288,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - 2026-06-09 — Skala dikonfirmasi: **1 outlet, tanpa multi-tenant**. Scan QR customer **online-only** (tidak offline). Project di-push ke GitHub: `rendyirawann/dine-sync-pos-rust`. Mulai Fase 0.
 - 2026-06-09 — **Fase 0 SELESAI.** Toolchain: GNU + WinLibs MinGW-w64 (perlu `dlltool` utk `windows-sys`, `gcc` utk SQLite nanti). Stack pure-Rust terbukti jalan (Axum 0.8 + SQLx 0.9 postgres tanpa TLS + Tera 1.20). Server `rust/crates/central` render Metronic dari Postgres di :8088.
 - 2026-06-09 — **Fase 1 SELESAI menyeluruh.** Login+session, RBAC (CurrentUser extractor, Superadmin bypass, 50 izin termuat), hardening (CSRF, rate-limit lockout bertingkat, activity_log, last_login). Deps baru: bcrypt 0.19, tower-sessions 0.15, uuid v4. Catatan: session masih MemoryStore (reset saat restart) — ganti store persisten saat Fase 3.
+- 2026-06-10 — **Fase 3 CORE SELESAI** (local-first write-path). SQLite lokal (`sqlx` sqlite feature — `libsqlite3-sys` kompilasi pakai gcc/WinLibs ✓), `sync.rs` (central_online ping+toggle, store_order_local, sync_now idempoten `ON CONFLICT(uuid)`, auto_sync_loop 30s), UI `/admin/sync`. Postgres `connect_lazy`. AppState +local(SqlitePool) +force_offline(AtomicBool). Terverifikasi: offline→device→sync→pusat tanpa dobel. SISA (besar): read-offline semua halaman, pull master data, konflik stok delta.
 - 2026-06-10 — **Fase 2 SELESAI** (Kasir/Order). `kasir.rs` (index/table_detail/create_order/store_order/pay_existing/clear_table/print_receipt) + templates `kasir/{index,order,table_detail,print}.html`. Alur order tunai end-to-end terverifikasi; dashboard omzet live. Checkout pakai JSON (cart array) → axum `Json`. Penting: kolom int4 (qty/capacity/tax_rate) WAJIB di-cast `::bigint` saat SELECT (sqlx map int4→i32, bukan i64). `/storage` kini disajikan (gambar menu/avatar). Midtrans/promo/stok ditunda.
 - 2026-06-09 — **Admin shell Metronic di-port** (atas permintaan user agar tampilan tuntas di Fase 1): `layout/app.html` (base) + `layout/{menu,sidebar,footer}.html` + `view.rs` (`base_context`). Menu ber-permission, link → path Rust. Avatar pakai default Metronic (`/assets/media/avatars/blank.png`) karena `/storage` belum disajikan. Halaman Fase 2+ tinggal `{% extends "layout/app.html" %}`.
 - 2026-06-09 — **Login & Dashboard disamakan penuh dgn Laravel** (permintaan user). Login: restore Manual Book (tombol melayang + viewer PDF.js) + loader sukses (three-dot+progress) + countdown lockout 429. Dashboard analytics di-port (4 kartu omzet/HPP/expense/laba, grafik ApexCharts omzet-vs-target, top 5 menu, tabel menu habis, modal HPP) dgn query data nyata di Rust (`format_rupiah` + `generate_series` chart). Data 0/kosong krn belum ada transaksi, query siap. `{% block scripts %}` ditambah di `app.html`. **Ditunda:** HPP detail DataTable (ajax server-side) → Fase 2.

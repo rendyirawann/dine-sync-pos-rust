@@ -172,6 +172,7 @@
             if (!res.success) { Swal.fire('Gagal!', res.error || 'Kesalahan sistem.', 'error'); btn.disabled = false; btn.textContent = 'Proses Pembayaran'; return; }
             const showPrint = (oid) => Swal.fire({ title: 'Pembayaran Lunas!', text: 'Cetak struk?', icon: 'success', showCancelButton: true, confirmButtonColor: '#009ef7', cancelButtonColor: '#f1416c', confirmButtonText: 'Cetak Struk', cancelButtonText: 'Lewati', allowOutsideClick: false })
                 .then(r => { if (r.isConfirmed) window.open('/admin/kasir/print/' + oid, '_blank', 'width=400,height=600'); window.location.href = '/admin/kasir'; });
+            if (res.offline) { Swal.fire({ title: '📴 Tersimpan Offline', text: res.message, icon: 'info', allowOutsideClick: false }).then(() => window.location.href = '/admin/kasir'); return; }
             if (res.type === 'pay_later') Swal.fire({ title: 'Berhasil!', text: res.message, icon: 'success', allowOutsideClick: false }).then(() => window.location.href = '/admin/kasir');
             else if (res.type === 'cash') showPrint(res.order_id);
         }).catch(() => { Swal.fire('Gagal!', 'Kesalahan jaringan.', 'error'); btn.disabled = false; btn.textContent = 'Proses Pembayaran'; });

@@ -12,6 +12,14 @@
                 <span class="menu-title">Dashboards</span>
             </a>
         </div>
+        {% if can_kasir %}
+        <div class="menu-item menu-here-bg me-0 me-lg-2 {% if active == 'kasir' %}here show {% endif %}">
+            <a href="/admin/kasir" class="menu-link px-4 {% if active == 'kasir' %}active {% endif %}"><span class="menu-title">Kasir</span></a>
+        </div>
+        {% endif %}
+        <div class="menu-item menu-here-bg me-0 me-lg-2 {% if active == 'sync' %}here show {% endif %}">
+            <a href="/admin/sync" class="menu-link px-4 {% if active == 'sync' %}active {% endif %}"><span class="menu-title">Sinkron</span></a>
+        </div>
 
         {% if can_master %}
         <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start"

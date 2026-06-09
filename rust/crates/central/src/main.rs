@@ -3,6 +3,7 @@ mod kasir;
 mod rbac;
 mod ratelimit;
 mod shift;
+mod sync;
 mod view;
 
 use std::sync::Arc;
@@ -25,8 +26,10 @@ use tower_sessions::{MemoryStore, SessionManagerLayer};
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    pub local: sqlx::SqlitePool,
     pub tera: Arc<Tera>,
     pub limiter: Arc<ratelimit::RateLimiter>,
+    pub force_offline: Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[tokio::main]
@@ -39,9 +42,8 @@ async fn main() -> anyhow::Result<()> {
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&db_url)
-        .await?;
-    tracing::info!("Terhubung ke PostgreSQL");
+        .connect_lazy(&db_url)?;
+    tracing::info!("Pool PostgreSQL siap (lazy — connect saat dipakai, agar bisa boot offline)");
 
     // Path absolut berbasis lokasi crate (cwd-independent), pakai '/' agar aman di Windows.
     let manifest_dir = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
@@ -49,11 +51,29 @@ async fn main() -> anyhow::Result<()> {
     let assets_dir = format!("{manifest_dir}/../../../public/assets");
     let storage_dir = format!("{manifest_dir}/../../../storage/app/public");
 
+    // DB lokal (SQLite) untuk mode offline / local-first.
+    let local_db = format!("{manifest_dir}/local.db");
+    let local = sqlx::sqlite::SqlitePoolOptions::new()
+        .connect_with(
+            sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(&local_db)
+                .create_if_missing(true),
+        )
+        .await?;
+    sqlx::query(sync::LOCAL_SCHEMA_ORDERS).execute(&local).await?;
+    sqlx::query(sync::LOCAL_SCHEMA_DETAILS).execute(&local).await?;
+    tracing::info!("SQLite lokal siap: {local_db}");
+
     let state = AppState {
         pool,
+        local,
         tera: Arc::new(tera),
         limiter: Arc::new(ratelimit::RateLimiter::default()),
+        force_offline: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     };
+
+    // Background: auto-sync order lokal ke pusat tiap 30 detik.
+    tokio::spawn(sync::auto_sync_loop(state.clone()));
 
     // Session disimpan di memori (cukup untuk Fase 1; nanti diganti store persisten).
     let session_layer = SessionManagerLayer::new(MemoryStore::default())
@@ -74,6 +94,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/kasir/pay-existing", post(kasir::pay_existing))
         .route("/admin/kasir/clear-table/{id}", post(kasir::clear_table))
         .route("/admin/kasir/print/{id}", get(kasir::print_receipt))
+        .route("/admin/sync", get(sync::sync_page))
+        .route("/admin/sync/now", post(sync::sync_run))
+        .route("/admin/sync/toggle", post(sync::toggle_offline))
         .route_layer(from_fn(auth::require_auth));
 
     let app = Router::new()
