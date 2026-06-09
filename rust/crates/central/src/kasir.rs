@@ -106,28 +106,42 @@ pub struct CsrfForm {
 /// GET /admin/kasir — peta meja (wajib ada shift terbuka).
 pub async fn index(user: CurrentUser, State(state): State<AppState>, session: Session) -> Response {
     let pool = &state.pool;
+    let online = crate::sync::central_online(&state).await;
 
-    let has_shift: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM shifts WHERE user_id=$1 AND status='open')",
-    )
-    .bind(user.id)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(false);
-    if !has_shift {
-        return Redirect::to("/admin/shifts?error=noshift").into_response();
+    if online {
+        let has_shift: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM shifts WHERE user_id=$1 AND status='open')",
+        )
+        .bind(user.id)
+        .fetch_one(pool)
+        .await
+        .unwrap_or(false);
+        if !has_shift {
+            return Redirect::to("/admin/shifts?error=noshift").into_response();
+        }
+        let _ = crate::sync::pull_master(&state).await; // segarkan cache lokal saat online
     }
+    // Saat offline: gerbang shift dilewati (kasir tetap bisa jalan di perangkat).
 
-    let tables: Vec<TableCard> = sqlx::query_as::<_, (i64, String, i64, String)>(
-        "SELECT t.id, t.table_number, t.capacity::bigint, \
-            CASE WHEN t.status='available' THEN 'available' \
-                 WHEN EXISTS(SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.order_status IN ('pending','cooking','served') AND o.payment_status='unpaid') THEN 'unpaid' \
-                 ELSE 'paid' END \
-         FROM tables t ORDER BY t.table_number",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default()
+    let tables: Vec<TableCard> = if online {
+        sqlx::query_as::<_, (i64, String, i64, String)>(
+            "SELECT t.id, t.table_number, t.capacity::bigint, \
+                CASE WHEN t.status='available' THEN 'available' \
+                     WHEN EXISTS(SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.order_status IN ('pending','cooking','served') AND o.payment_status='unpaid') THEN 'unpaid' \
+                     ELSE 'paid' END \
+             FROM tables t ORDER BY t.table_number",
+        )
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+    } else {
+        sqlx::query_as::<_, (i64, String, i64, String)>(
+            "SELECT id, table_number, capacity, CASE WHEN status='available' THEN 'available' ELSE 'paid' END FROM local_tables ORDER BY table_number",
+        )
+        .fetch_all(&state.local)
+        .await
+        .unwrap_or_default()
+    }
     .into_iter()
     .map(|(id, number, capacity, display)| TableCard { id, number, capacity, display })
     .collect();
@@ -142,12 +156,16 @@ pub async fn index(user: CurrentUser, State(state): State<AppState>, session: Se
     ctx.insert("unpaid_count", &unpaid_count);
     ctx.insert("paid_count", &paid_count);
     ctx.insert("csrf_token", &auth::ensure_csrf(&session).await);
+    ctx.insert("offline", &!online);
 
     render(&state, "kasir/index.html", &ctx)
 }
 
 /// GET /admin/kasir/table-detail/{id} — JSON untuk modal.
 pub async fn table_detail(State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    if !crate::sync::central_online(&state).await {
+        return table_detail_local(&state, id).await;
+    }
     let pool = &state.pool;
 
     let row: Option<(String, String)> =
@@ -221,6 +239,67 @@ pub async fn table_detail(State(state): State<AppState>, Path(id): Path<i64>) ->
     Json(json!({"status": "occupied", "html": html})).into_response()
 }
 
+/// Detail meja saat OFFLINE — baca order lokal (belum tersinkron) dari SQLite.
+async fn table_detail_local(state: &AppState, id: i64) -> Response {
+    let local = &state.local;
+    let table_number: String = sqlx::query_scalar("SELECT table_number FROM local_tables WHERE id=?")
+        .bind(id)
+        .fetch_optional(local)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "?".into());
+    let orders_raw: Vec<(String, String, String, Option<String>, i64, String)> = sqlx::query_as(
+        "SELECT uuid, invoice_no, order_type, customer_name, grand_total, payment_status FROM local_orders WHERE table_id=? AND synced=0 ORDER BY created_at DESC",
+    )
+    .bind(id)
+    .fetch_all(local)
+    .await
+    .unwrap_or_default();
+    if orders_raw.is_empty() {
+        return Json(json!({"status": "available", "table_number": table_number})).into_response();
+    }
+    let mut orders: Vec<OrderCard> = Vec::new();
+    for (uuid, invoice, otype, cust, grand, pstatus) in orders_raw {
+        let items: Vec<DetailItem> = sqlx::query_as::<_, (Option<String>, i64, i64, Option<String>)>(
+            "SELECT (SELECT name FROM local_menus WHERE id = d.menu_id), d.qty, d.subtotal, d.notes FROM local_order_details d WHERE d.order_uuid = ?",
+        )
+        .bind(&uuid)
+        .fetch_all(local)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, qty, sub, notes)| DetailItem {
+            name: name.unwrap_or_else(|| "Menu".into()),
+            qty,
+            subtotal_fmt: fmt(sub),
+            notes,
+            status: "pending".into(),
+        })
+        .collect();
+        orders.push(OrderCard {
+            id: 0,
+            invoice_no: invoice,
+            order_type: otype,
+            customer_name: cust.unwrap_or_else(|| "Tanpa Nama".into()),
+            order_status: "pending".into(),
+            payment_status: pstatus,
+            grand_total: grand,
+            grand_total_fmt: fmt(grand),
+            items,
+        });
+    }
+    let mut ctx = tera::Context::new();
+    ctx.insert("table_id", &id);
+    ctx.insert("table_number", &table_number);
+    ctx.insert("orders", &orders);
+    let html = state
+        .tera
+        .render("kasir/table_detail.html", &ctx)
+        .unwrap_or_else(|e| format!("<pre>{e:#}</pre>"));
+    Json(json!({"status": "occupied", "html": html})).into_response()
+}
+
 /// GET /admin/kasir/order/{table_id} — halaman menu + keranjang.
 pub async fn create_order(
     user: CurrentUser,
@@ -230,14 +309,13 @@ pub async fn create_order(
     Query(q): Query<CreateOrderQuery>,
 ) -> Response {
     let pool = &state.pool;
+    let online = crate::sync::central_online(&state).await;
 
-    let table: Option<(String, String)> =
-        sqlx::query_as("SELECT table_number, status FROM tables WHERE id=$1")
-            .bind(table_id)
-            .fetch_optional(pool)
-            .await
-            .ok()
-            .flatten();
+    let table: Option<(String, String)> = if online {
+        sqlx::query_as("SELECT table_number, status FROM tables WHERE id=$1").bind(table_id).fetch_optional(pool).await.ok().flatten()
+    } else {
+        sqlx::query_as("SELECT table_number, status FROM local_tables WHERE id=?").bind(table_id).fetch_optional(&state.local).await.ok().flatten()
+    };
     let Some((table_number, status)) = table else {
         return Redirect::to("/admin/kasir").into_response();
     };
@@ -245,40 +323,38 @@ pub async fn create_order(
         return Redirect::to("/admin/kasir").into_response();
     }
 
-    let categories: Vec<Cat> = sqlx::query_as::<_, (i64, String)>(
-        "SELECT id, name FROM categories ORDER BY name",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default()
-    .into_iter()
-    .map(|(id, name)| Cat { id, name })
-    .collect();
+    let cat_rows: Vec<(i64, String)> = if online {
+        sqlx::query_as("SELECT id, name FROM categories ORDER BY name").fetch_all(pool).await.unwrap_or_default()
+    } else {
+        sqlx::query_as("SELECT id, name FROM local_categories ORDER BY name").fetch_all(&state.local).await.unwrap_or_default()
+    };
+    let categories: Vec<Cat> = cat_rows.into_iter().map(|(id, name)| Cat { id, name }).collect();
 
-    let menus: Vec<MenuItem> = sqlx::query_as::<_, (i64, i64, String, i64, Option<String>)>(
-        "SELECT id, category_id, name, price::bigint, image FROM menus WHERE is_available = true ORDER BY name",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default()
-    .into_iter()
-    .map(|(id, category_id, name, price, image)| MenuItem {
-        id,
-        category_id,
-        name,
-        price,
-        price_fmt: fmt(price),
-        image: match image {
-            Some(img) if !img.is_empty() => format!("/storage/menus/{img}"),
-            _ => "/assets/media/svg/files/blank-image.svg".to_string(),
-        },
-    })
-    .collect();
+    let menu_rows: Vec<(i64, i64, String, i64, Option<String>)> = if online {
+        sqlx::query_as("SELECT id, category_id, name, price::bigint, image FROM menus WHERE is_available = true ORDER BY name").fetch_all(pool).await.unwrap_or_default()
+    } else {
+        sqlx::query_as("SELECT id, category_id, name, price, image FROM local_menus WHERE is_available = 1 ORDER BY name").fetch_all(&state.local).await.unwrap_or_default()
+    };
+    let menus: Vec<MenuItem> = menu_rows
+        .into_iter()
+        .map(|(id, category_id, name, price, image)| MenuItem {
+            id,
+            category_id,
+            name,
+            price,
+            price_fmt: fmt(price),
+            image: match image {
+                Some(img) if !img.is_empty() => format!("/storage/menus/{img}"),
+                _ => "/assets/media/svg/files/blank-image.svg".to_string(),
+            },
+        })
+        .collect();
 
-    let tax_rate: i64 = sqlx::query_scalar("SELECT COALESCE((SELECT tax_rate FROM settings LIMIT 1), 10)::bigint")
-        .fetch_one(pool)
-        .await
-        .unwrap_or(10);
+    let tax_rate: i64 = if online {
+        sqlx::query_scalar("SELECT COALESCE((SELECT tax_rate FROM settings LIMIT 1), 10)::bigint").fetch_one(pool).await.unwrap_or(10)
+    } else {
+        sqlx::query_scalar("SELECT COALESCE((SELECT tax_rate FROM local_settings LIMIT 1), 10)").fetch_one(&state.local).await.unwrap_or(10)
+    };
 
     let mut ctx = view::base_context(&state, &user, "kasir").await;
     ctx.insert("table_id", &table_id);
@@ -289,6 +365,7 @@ pub async fn create_order(
     ctx.insert("menus", &menus);
     ctx.insert("tax_rate", &tax_rate);
     ctx.insert("csrf_token", &auth::ensure_csrf(&session).await);
+    ctx.insert("offline", &!online);
 
     render(&state, "kasir/order.html", &ctx)
 }

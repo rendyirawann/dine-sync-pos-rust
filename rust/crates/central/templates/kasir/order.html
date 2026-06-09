@@ -4,6 +4,8 @@
 <div id="kt_app_content" class="app-content flex-column-fluid mt-5">
     <div class="app-container container-xxl">
 
+        {% if offline %}<div class="alert alert-warning p-4 mb-5">📴 <b>Mode OFFLINE</b> — order akan disimpan di perangkat &amp; disinkronkan saat server online.</div>{% endif %}
+
         <div class="d-flex align-items-center justify-content-between bg-white rounded p-5 mb-7 shadow-sm">
             <div class="d-flex align-items-center">
                 <a href="/admin/kasir" class="btn btn-icon btn-light me-4"><i class="ki-outline ki-arrow-left fs-2"></i></a>

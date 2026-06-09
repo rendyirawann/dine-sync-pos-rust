@@ -62,6 +62,10 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     sqlx::query(sync::LOCAL_SCHEMA_ORDERS).execute(&local).await?;
     sqlx::query(sync::LOCAL_SCHEMA_DETAILS).execute(&local).await?;
+    sqlx::query(sync::LOCAL_SCHEMA_TABLES).execute(&local).await?;
+    sqlx::query(sync::LOCAL_SCHEMA_MENUS).execute(&local).await?;
+    sqlx::query(sync::LOCAL_SCHEMA_CATEGORIES).execute(&local).await?;
+    sqlx::query(sync::LOCAL_SCHEMA_SETTINGS).execute(&local).await?;
     tracing::info!("SQLite lokal siap: {local_db}");
 
     let state = AppState {
@@ -74,6 +78,9 @@ async fn main() -> anyhow::Result<()> {
 
     // Background: auto-sync order lokal ke pusat tiap 30 detik.
     tokio::spawn(sync::auto_sync_loop(state.clone()));
+
+    // Tarik master data awal ke cache lokal (best-effort) agar Kasir siap dipakai offline.
+    let _ = sync::pull_master(&state).await;
 
     // Session disimpan di memori (cukup untuk Fase 1; nanti diganti store persisten).
     let session_layer = SessionManagerLayer::new(MemoryStore::default())
