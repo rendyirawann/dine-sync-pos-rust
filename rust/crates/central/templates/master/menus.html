@@ -1,0 +1,82 @@
+{% extends "layout/app.html" %}
+{% block title %}Menu Makanan & Minuman — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h3 class="card-title fw-bold"><i class="ki-outline ki-coffee fs-2 me-2"></i> Menu Makanan &amp; Minuman</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add"><i class="ki-outline ki-plus fs-3"></i> Tambah Menu</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-row-dashed align-middle gy-3">
+                    <thead><tr class="fw-bold text-muted"><th>Nama</th><th>Kategori</th><th class="text-end">Harga</th><th class="text-center">Tersedia</th><th class="text-end">Aksi</th></tr></thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="fw-bold text-gray-800">{{ r.name }}{% if r.description %}<div class="text-muted fs-8">{{ r.description }}</div>{% endif %}</td>
+                            <td><span class="badge badge-light-primary">{{ r.category_name }}</span></td>
+                            <td class="text-end fw-bold text-success">Rp {{ r.price_fmt }}</td>
+                            <td class="text-center">{% if r.is_available %}<span class="badge badge-light-success">Tersedia</span>{% else %}<span class="badge badge-light-danger">Habis</span>{% endif %}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-light-primary menu-edit" data-id="{{ r.id }}" data-name="{{ r.name }}" data-cat="{{ r.category_id }}" data-price="{{ r.price }}" data-desc="{{ r.description }}" data-avail="{{ r.is_available }}">Edit</button>
+                                <form method="POST" action="/admin/menus/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus menu ini?')">
+                                    <input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-danger">Hapus</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-5">Belum ada menu.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" id="menuForm">
+        <div class="modal-header"><h2 class="fw-bold" id="modalTitle">Tambah Menu</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <div class="mb-4"><label class="form-label required fw-semibold">Nama Menu</label><input type="text" name="name" id="mName" class="form-control form-control-solid" required></div>
+            <div class="mb-4"><label class="form-label required fw-semibold">Kategori</label>
+                <select name="category_id" id="mCat" class="form-select form-select-solid" required>
+                    {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                </select></div>
+            <div class="mb-4"><label class="form-label required fw-semibold">Harga (Rp)</label><input type="number" name="price" id="mPrice" class="form-control form-control-solid" min="0" required></div>
+            <div class="mb-4"><label class="form-label fw-semibold">Deskripsi</label><input type="text" name="description" id="mDesc" class="form-control form-control-solid"></div>
+            <div class="form-check form-switch form-check-custom form-check-solid"><input class="form-check-input" type="checkbox" name="is_available" id="mAvail" checked><label class="form-check-label fw-semibold ms-3" for="mAvail">Tersedia untuk dipesan</label></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+
+{% block scripts %}
+{% raw %}
+<script>
+    function openCreate() {
+        document.getElementById('modalTitle').textContent = 'Tambah Menu';
+        document.getElementById('menuForm').action = '/admin/menus';
+        document.getElementById('mName').value = ''; document.getElementById('mPrice').value = '';
+        document.getElementById('mDesc').value = ''; document.getElementById('mAvail').checked = true;
+        $('#formModal').modal('show');
+    }
+    document.getElementById('btn-add').addEventListener('click', openCreate);
+    document.querySelectorAll('.menu-edit').forEach(b => b.addEventListener('click', function () {
+        document.getElementById('modalTitle').textContent = 'Edit Menu';
+        document.getElementById('menuForm').action = '/admin/menus/' + this.dataset.id;
+        document.getElementById('mName').value = this.dataset.name;
+        document.getElementById('mCat').value = this.dataset.cat;
+        document.getElementById('mPrice').value = this.dataset.price;
+        document.getElementById('mDesc').value = (this.dataset.desc === 'null') ? '' : this.dataset.desc;
+        document.getElementById('mAvail').checked = (this.dataset.avail === 'true');
+        $('#formModal').modal('show');
+    }));
+</script>
+{% endraw %}
+{% endblock %}

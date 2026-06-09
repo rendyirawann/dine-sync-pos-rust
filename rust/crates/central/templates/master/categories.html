@@ -1,0 +1,65 @@
+{% extends "layout/app.html" %}
+{% block title %}Kategori Menu — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h3 class="card-title fw-bold"><i class="ki-outline ki-category fs-2 me-2"></i> Kategori Menu</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add"><i class="ki-outline ki-plus fs-3"></i> Tambah Kategori</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-row-dashed align-middle gy-3">
+                    <thead><tr class="fw-bold text-muted"><th>Nama</th><th>Slug</th><th class="text-end">Aksi</th></tr></thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="fw-bold text-gray-800">{{ r.name }}</td>
+                            <td class="text-muted">{{ r.slug }}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-light-primary cat-edit" data-id="{{ r.id }}" data-name="{{ r.name }}">Edit</button>
+                                <form method="POST" action="/admin/categories/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus kategori ini?')">
+                                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                                    <button class="btn btn-sm btn-light-danger">Hapus</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center text-muted py-5">Belum ada kategori.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" id="catForm">
+        <div class="modal-header"><h2 class="fw-bold" id="modalTitle">Tambah Kategori</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <label class="form-label required fw-semibold">Nama Kategori</label>
+            <input type="text" name="name" id="catName" class="form-control form-control-solid" required placeholder="Mis: Makanan, Minuman">
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+
+{% block scripts %}
+{% raw %}
+<script>
+    function openCreate() { document.getElementById('modalTitle').textContent = 'Tambah Kategori'; document.getElementById('catForm').action = '/admin/categories'; document.getElementById('catName').value = ''; $('#formModal').modal('show'); }
+    document.getElementById('btn-add').addEventListener('click', openCreate);
+    document.querySelectorAll('.cat-edit').forEach(b => b.addEventListener('click', function () {
+        document.getElementById('modalTitle').textContent = 'Edit Kategori';
+        document.getElementById('catForm').action = '/admin/categories/' + this.dataset.id;
+        document.getElementById('catName').value = this.dataset.name;
+        $('#formModal').modal('show');
+    }));
+</script>
+{% endraw %}
+{% endblock %}

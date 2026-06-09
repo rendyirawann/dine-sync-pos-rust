@@ -1,0 +1,74 @@
+{% extends "layout/app.html" %}
+{% block title %}Manajemen Meja — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h3 class="card-title fw-bold"><i class="ki-outline ki-abstract-14 fs-2 me-2"></i> Manajemen Meja</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add"><i class="ki-outline ki-plus fs-3"></i> Tambah Meja</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-row-dashed align-middle gy-3">
+                    <thead><tr class="fw-bold text-muted"><th>No. Meja</th><th class="text-center">Kapasitas</th><th class="text-center">Status</th><th class="text-end">Aksi</th></tr></thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="fw-bold text-gray-800">{{ r.table_number }}</td>
+                            <td class="text-center">{{ r.capacity }} orang</td>
+                            <td class="text-center">{% if r.status == 'available' %}<span class="badge badge-light-success">Kosong</span>{% else %}<span class="badge badge-light-danger">Terisi</span>{% endif %}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-light-primary tbl-edit" data-id="{{ r.id }}" data-num="{{ r.table_number }}" data-cap="{{ r.capacity }}" data-status="{{ r.status }}">Edit</button>
+                                <form method="POST" action="/admin/tables/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus meja ini?')">
+                                    <input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-danger">Hapus</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-5">Belum ada meja.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" id="tblForm">
+        <div class="modal-header"><h2 class="fw-bold" id="modalTitle">Tambah Meja</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <div class="mb-4"><label class="form-label required fw-semibold">No. Meja</label><input type="text" name="table_number" id="tNum" class="form-control form-control-solid" required placeholder="Mis: Meja 01, VIP 1"></div>
+            <div class="mb-4"><label class="form-label required fw-semibold">Kapasitas</label><input type="number" name="capacity" id="tCap" class="form-control form-control-solid" min="1" value="2" required></div>
+            <div class="mb-4"><label class="form-label required fw-semibold">Status</label>
+                <select name="status" id="tStatus" class="form-select form-select-solid"><option value="available">Kosong</option><option value="occupied">Terisi</option></select></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+
+{% block scripts %}
+{% raw %}
+<script>
+    function openCreate() {
+        document.getElementById('modalTitle').textContent = 'Tambah Meja';
+        document.getElementById('tblForm').action = '/admin/tables';
+        document.getElementById('tNum').value = ''; document.getElementById('tCap').value = '2'; document.getElementById('tStatus').value = 'available';
+        $('#formModal').modal('show');
+    }
+    document.getElementById('btn-add').addEventListener('click', openCreate);
+    document.querySelectorAll('.tbl-edit').forEach(b => b.addEventListener('click', function () {
+        document.getElementById('modalTitle').textContent = 'Edit Meja';
+        document.getElementById('tblForm').action = '/admin/tables/' + this.dataset.id;
+        document.getElementById('tNum').value = this.dataset.num;
+        document.getElementById('tCap').value = this.dataset.cap;
+        document.getElementById('tStatus').value = this.dataset.status;
+        $('#formModal').modal('show');
+    }));
+</script>
+{% endraw %}
+{% endblock %}

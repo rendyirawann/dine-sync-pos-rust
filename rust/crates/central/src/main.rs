@@ -1,6 +1,7 @@
 mod auth;
 mod kasir;
 mod kitchen;
+mod master;
 mod rbac;
 mod ratelimit;
 mod shift;
@@ -104,6 +105,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/kasir/print/{id}", get(kasir::print_receipt))
         .route("/admin/kitchen", get(kitchen::index))
         .route("/admin/kitchen/order-status", post(kitchen::order_status))
+        .route("/admin/categories", get(master::categories_index).post(master::category_store))
+        .route("/admin/categories/{id}", post(master::category_update))
+        .route("/admin/categories/{id}/delete", post(master::category_delete))
+        .route("/admin/menus", get(master::menus_index).post(master::menu_store))
+        .route("/admin/menus/{id}", post(master::menu_update))
+        .route("/admin/menus/{id}/delete", post(master::menu_delete))
+        .route("/admin/tables", get(master::tables_index).post(master::table_store))
+        .route("/admin/tables/{id}", post(master::table_update))
+        .route("/admin/tables/{id}/delete", post(master::table_delete))
         .route("/admin/sync", get(sync::sync_page))
         .route("/admin/sync/now", post(sync::sync_run))
         .route("/admin/sync/toggle", post(sync::toggle_offline))
