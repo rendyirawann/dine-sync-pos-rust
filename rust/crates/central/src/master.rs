@@ -354,3 +354,264 @@ fn redirect_master(base: &str, ok: bool, ok_code: &str) -> Response {
     };
     Redirect::to(&target).into_response()
 }
+
+// ================= PROMOS =================
+#[derive(Serialize)]
+struct PromoRow {
+    id: i64,
+    name: String,
+    discount_type: String,
+    discount_value: i64,
+    is_active: bool,
+}
+#[derive(Deserialize)]
+pub struct PromoForm {
+    #[serde(rename = "_token", default)]
+    csrf: String,
+    name: String,
+    discount_type: String, // percentage | fixed
+    discount_value: i64,
+    #[serde(default)]
+    is_active: Option<String>,
+}
+
+pub async fn promos_index(user: CurrentUser, State(state): State<AppState>, session: Session, Query(f): Query<Flash>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    let rows: Vec<PromoRow> = sqlx::query_as::<_, (i64, String, String, i64, bool)>("SELECT id, name, discount_type, discount_value::bigint, is_active FROM promos ORDER BY name")
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id, name, discount_type, discount_value, is_active)| PromoRow { id, name, discount_type, discount_value, is_active })
+        .collect();
+    let mut ctx = ctx_with_flash(&state, &user, "master", &session, &f).await;
+    ctx.insert("rows", &rows);
+    render(&state, "master/promos.html", &ctx)
+}
+
+pub async fn promo_store(user: CurrentUser, State(state): State<AppState>, session: Session, Form(form): Form<PromoForm>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/promos?err=csrf").into_response();
+    }
+    let r = sqlx::query("INSERT INTO promos (name, discount_type, discount_value, is_active, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now())")
+        .bind(form.name.trim())
+        .bind(&form.discount_type)
+        .bind(form.discount_value)
+        .bind(form.is_active.is_some())
+        .execute(&state.pool)
+        .await;
+    redirect_master("/admin/promos", r.is_ok(), "saved")
+}
+
+pub async fn promo_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<PromoForm>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/promos?err=csrf").into_response();
+    }
+    let r = sqlx::query("UPDATE promos SET name=$1, discount_type=$2, discount_value=$3, is_active=$4, updated_at=now() WHERE id=$5")
+        .bind(form.name.trim())
+        .bind(&form.discount_type)
+        .bind(form.discount_value)
+        .bind(form.is_active.is_some())
+        .bind(id)
+        .execute(&state.pool)
+        .await;
+    redirect_master("/admin/promos", r.is_ok(), "updated")
+}
+
+pub async fn promo_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/promos?err=csrf").into_response();
+    }
+    let used: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM orders WHERE promo_id=$1)").bind(id).fetch_one(&state.pool).await.unwrap_or(false);
+    if used {
+        return Redirect::to("/admin/promos?err=used").into_response();
+    }
+    let r = sqlx::query("DELETE FROM promos WHERE id=$1").bind(id).execute(&state.pool).await;
+    redirect_master("/admin/promos", r.is_ok(), "deleted")
+}
+
+// ================= SUPPLIERS =================
+#[derive(Serialize)]
+struct SupplierRow {
+    id: i64,
+    name: String,
+    contact_person: Option<String>,
+    phone: Option<String>,
+    address: Option<String>,
+}
+#[derive(Deserialize)]
+pub struct SupplierForm {
+    #[serde(rename = "_token", default)]
+    csrf: String,
+    name: String,
+    #[serde(default)]
+    contact_person: Option<String>,
+    #[serde(default)]
+    phone: Option<String>,
+    #[serde(default)]
+    address: Option<String>,
+}
+
+pub async fn suppliers_index(user: CurrentUser, State(state): State<AppState>, session: Session, Query(f): Query<Flash>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    let rows: Vec<SupplierRow> = sqlx::query_as::<_, (i64, String, Option<String>, Option<String>, Option<String>)>("SELECT id, name, contact_person, phone, address FROM suppliers ORDER BY name")
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id, name, contact_person, phone, address)| SupplierRow { id, name, contact_person, phone, address })
+        .collect();
+    let mut ctx = ctx_with_flash(&state, &user, "master", &session, &f).await;
+    ctx.insert("rows", &rows);
+    render(&state, "master/suppliers.html", &ctx)
+}
+
+pub async fn supplier_store(user: CurrentUser, State(state): State<AppState>, session: Session, Form(form): Form<SupplierForm>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/suppliers?err=csrf").into_response();
+    }
+    let r = sqlx::query("INSERT INTO suppliers (name, contact_person, phone, address, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now())")
+        .bind(form.name.trim())
+        .bind(opt(&form.contact_person))
+        .bind(opt(&form.phone))
+        .bind(opt(&form.address))
+        .execute(&state.pool)
+        .await;
+    redirect_master("/admin/suppliers", r.is_ok(), "saved")
+}
+
+pub async fn supplier_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<SupplierForm>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/suppliers?err=csrf").into_response();
+    }
+    let r = sqlx::query("UPDATE suppliers SET name=$1, contact_person=$2, phone=$3, address=$4, updated_at=now() WHERE id=$5")
+        .bind(form.name.trim())
+        .bind(opt(&form.contact_person))
+        .bind(opt(&form.phone))
+        .bind(opt(&form.address))
+        .bind(id)
+        .execute(&state.pool)
+        .await;
+    redirect_master("/admin/suppliers", r.is_ok(), "updated")
+}
+
+pub async fn supplier_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/suppliers?err=csrf").into_response();
+    }
+    let used: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM ingredient_batches WHERE supplier_id=$1)").bind(id).fetch_one(&state.pool).await.unwrap_or(false);
+    if used {
+        return Redirect::to("/admin/suppliers?err=used").into_response();
+    }
+    let r = sqlx::query("DELETE FROM suppliers WHERE id=$1").bind(id).execute(&state.pool).await;
+    redirect_master("/admin/suppliers", r.is_ok(), "deleted")
+}
+
+// ================= INGREDIENTS (Bahan) =================
+#[derive(Serialize)]
+struct IngredientRow {
+    id: i64,
+    name: String,
+    unit: String,
+    minimum_stock: i64,
+}
+#[derive(Deserialize)]
+pub struct IngredientForm {
+    #[serde(rename = "_token", default)]
+    csrf: String,
+    name: String,
+    unit: String,
+    minimum_stock: i64,
+}
+
+pub async fn ingredients_index(user: CurrentUser, State(state): State<AppState>, session: Session, Query(f): Query<Flash>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    let rows: Vec<IngredientRow> = sqlx::query_as::<_, (i64, String, String, i64)>("SELECT id, name, unit, minimum_stock::bigint FROM ingredients ORDER BY name")
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id, name, unit, minimum_stock)| IngredientRow { id, name, unit, minimum_stock })
+        .collect();
+    let mut ctx = ctx_with_flash(&state, &user, "master", &session, &f).await;
+    ctx.insert("rows", &rows);
+    render(&state, "master/ingredients.html", &ctx)
+}
+
+pub async fn ingredient_store(user: CurrentUser, State(state): State<AppState>, session: Session, Form(form): Form<IngredientForm>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/ingredients?err=csrf").into_response();
+    }
+    let r = sqlx::query("INSERT INTO ingredients (name, unit, minimum_stock, created_at, updated_at) VALUES ($1, $2, $3::numeric, now(), now())")
+        .bind(form.name.trim())
+        .bind(form.unit.trim())
+        .bind(form.minimum_stock)
+        .execute(&state.pool)
+        .await;
+    redirect_master("/admin/ingredients", r.is_ok(), "saved")
+}
+
+pub async fn ingredient_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<IngredientForm>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/ingredients?err=csrf").into_response();
+    }
+    let r = sqlx::query("UPDATE ingredients SET name=$1, unit=$2, minimum_stock=$3::numeric, updated_at=now() WHERE id=$4")
+        .bind(form.name.trim())
+        .bind(form.unit.trim())
+        .bind(form.minimum_stock)
+        .bind(id)
+        .execute(&state.pool)
+        .await;
+    redirect_master("/admin/ingredients", r.is_ok(), "updated")
+}
+
+pub async fn ingredient_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/ingredients?err=csrf").into_response();
+    }
+    let used_recipe: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM menu_ingredients WHERE ingredient_id=$1)").bind(id).fetch_one(&state.pool).await.unwrap_or(false);
+    let used_batch: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM ingredient_batches WHERE ingredient_id=$1)").bind(id).fetch_one(&state.pool).await.unwrap_or(false);
+    if used_recipe || used_batch {
+        return Redirect::to("/admin/ingredients?err=used").into_response();
+    }
+    let r = sqlx::query("DELETE FROM ingredients WHERE id=$1").bind(id).execute(&state.pool).await;
+    redirect_master("/admin/ingredients", r.is_ok(), "deleted")
+}
+
+/// Trim + None bila kosong (untuk kolom nullable).
+fn opt(s: &Option<String>) -> Option<String> {
+    s.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(String::from)
+}

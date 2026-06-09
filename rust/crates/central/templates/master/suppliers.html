@@ -1,0 +1,64 @@
+{% extends "layout/app.html" %}
+{% block title %}Supplier — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h3 class="card-title fw-bold"><i class="ki-outline ki-truck fs-2 me-2"></i> Supplier</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add"><i class="ki-outline ki-plus fs-3"></i> Tambah Supplier</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-row-dashed align-middle gy-3">
+                    <thead><tr class="fw-bold text-muted"><th>Nama</th><th>Kontak</th><th>Telepon</th><th class="text-end">Aksi</th></tr></thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="fw-bold text-gray-800">{{ r.name }}{% if r.address %}<div class="text-muted fs-8">{{ r.address }}</div>{% endif %}</td>
+                            <td>{{ r.contact_person | default(value="-") }}</td>
+                            <td>{{ r.phone | default(value="-") }}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-light-primary s-edit" data-id="{{ r.id }}" data-name="{{ r.name }}" data-contact="{{ r.contact_person | default(value='') }}" data-phone="{{ r.phone | default(value='') }}" data-address="{{ r.address | default(value='') }}">Edit</button>
+                                <form method="POST" action="/admin/suppliers/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus supplier ini?')"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-danger">Hapus</button></form>
+                            </td>
+                        </tr>
+                        {% else %}<tr><td colspan="4" class="text-center text-muted py-5">Belum ada supplier.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" id="sForm">
+        <div class="modal-header"><h2 class="fw-bold" id="modalTitle">Tambah Supplier</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <div class="mb-4"><label class="form-label required fw-semibold">Nama Supplier</label><input type="text" name="name" id="sName" class="form-control form-control-solid" required></div>
+            <div class="mb-4"><label class="form-label fw-semibold">Nama Kontak</label><input type="text" name="contact_person" id="sContact" class="form-control form-control-solid"></div>
+            <div class="mb-4"><label class="form-label fw-semibold">Telepon</label><input type="text" name="phone" id="sPhone" class="form-control form-control-solid"></div>
+            <div class="mb-4"><label class="form-label fw-semibold">Alamat</label><textarea name="address" id="sAddress" class="form-control form-control-solid" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+    function openCreate() { document.getElementById('modalTitle').textContent='Tambah Supplier'; document.getElementById('sForm').action='/admin/suppliers'; ['sName','sContact','sPhone','sAddress'].forEach(i=>document.getElementById(i).value=''); $('#formModal').modal('show'); }
+    document.getElementById('btn-add').addEventListener('click', openCreate);
+    document.querySelectorAll('.s-edit').forEach(b => b.addEventListener('click', function () {
+        document.getElementById('modalTitle').textContent='Edit Supplier';
+        document.getElementById('sForm').action='/admin/suppliers/'+this.dataset.id;
+        document.getElementById('sName').value=this.dataset.name;
+        document.getElementById('sContact').value=this.dataset.contact;
+        document.getElementById('sPhone').value=this.dataset.phone;
+        document.getElementById('sAddress').value=this.dataset.address;
+        $('#formModal').modal('show');
+    }));
+</script>
+{% endraw %}
+{% endblock %}

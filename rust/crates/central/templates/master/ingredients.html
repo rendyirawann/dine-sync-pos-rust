@@ -1,0 +1,62 @@
+{% extends "layout/app.html" %}
+{% block title %}Bahan Baku — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h3 class="card-title fw-bold"><i class="ki-outline ki-bucket fs-2 me-2"></i> Bahan Baku</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add"><i class="ki-outline ki-plus fs-3"></i> Tambah Bahan</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-row-dashed align-middle gy-3">
+                    <thead><tr class="fw-bold text-muted"><th>Nama Bahan</th><th>Satuan</th><th class="text-end">Stok Minimum</th><th class="text-end">Aksi</th></tr></thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="fw-bold text-gray-800">{{ r.name }}</td>
+                            <td>{{ r.unit }}</td>
+                            <td class="text-end">{{ r.minimum_stock }} {{ r.unit }}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-light-primary i-edit" data-id="{{ r.id }}" data-name="{{ r.name }}" data-unit="{{ r.unit }}" data-min="{{ r.minimum_stock }}">Edit</button>
+                                <form method="POST" action="/admin/ingredients/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus bahan ini?')"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-danger">Hapus</button></form>
+                            </td>
+                        </tr>
+                        {% else %}<tr><td colspan="4" class="text-center text-muted py-5">Belum ada bahan baku.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" id="iForm">
+        <div class="modal-header"><h2 class="fw-bold" id="modalTitle">Tambah Bahan</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <div class="mb-4"><label class="form-label required fw-semibold">Nama Bahan</label><input type="text" name="name" id="iName" class="form-control form-control-solid" required placeholder="Mis: Beras, Ayam, Gula"></div>
+            <div class="mb-4"><label class="form-label required fw-semibold">Satuan</label><input type="text" name="unit" id="iUnit" class="form-control form-control-solid" required placeholder="Mis: gram, ml, pcs"></div>
+            <div class="mb-4"><label class="form-label required fw-semibold">Stok Minimum</label><input type="number" name="minimum_stock" id="iMin" class="form-control form-control-solid" min="0" value="0" required></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+    function openCreate() { document.getElementById('modalTitle').textContent='Tambah Bahan'; document.getElementById('iForm').action='/admin/ingredients'; document.getElementById('iName').value=''; document.getElementById('iUnit').value=''; document.getElementById('iMin').value='0'; $('#formModal').modal('show'); }
+    document.getElementById('btn-add').addEventListener('click', openCreate);
+    document.querySelectorAll('.i-edit').forEach(b => b.addEventListener('click', function () {
+        document.getElementById('modalTitle').textContent='Edit Bahan';
+        document.getElementById('iForm').action='/admin/ingredients/'+this.dataset.id;
+        document.getElementById('iName').value=this.dataset.name;
+        document.getElementById('iUnit').value=this.dataset.unit;
+        document.getElementById('iMin').value=this.dataset.min;
+        $('#formModal').modal('show');
+    }));
+</script>
+{% endraw %}
+{% endblock %}
