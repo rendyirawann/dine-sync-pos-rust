@@ -1,0 +1,113 @@
+<div class="d-flex flex-column gap-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h3 class="fw-bolder text-gray-800 m-0">Daftar Tagihan Meja {{ $table->table_number }}</h3>
+        <button type="button" class="btn btn-sm btn-danger fw-bold" onclick="clearTable({{ $table->id }})">
+            <i class="ki-outline ki-exit-right fs-4"></i> Kosongkan Meja
+        </button>
+    </div>
+
+    <div style="max-height: 60vh; overflow-y: auto; overflow-x: hidden; padding-right: 5px;">
+
+        @foreach ($orders as $index => $order)
+            <div class="card bg-light border border-gray-300 shadow-sm mb-4">
+
+                <div
+                    class="card-header min-h-50px px-4 py-2 bg-light-primary border-bottom border-primary border-dashed">
+                    <div class="card-title m-0 d-flex flex-column align-items-start w-100">
+                        <div>
+                            <span class="fs-6 fw-bold text-primary">#{{ $order->invoice_no }}</span>
+                            @if ($order->order_type == 'take_away')
+                                <span class="badge badge-light-info px-2 py-1 fs-9 ms-1">Take Away</span>
+                            @elseif($order->order_type == 'reservation')
+                                <span class="badge badge-light-danger px-2 py-1 fs-9 ms-1">Reservasi</span>
+                            @else
+                                <span class="badge badge-light-primary px-2 py-1 fs-9 ms-1">Dine In</span>
+                            @endif
+                        </div>
+                        <span class="fs-8 text-gray-600">Pelanggan: <span
+                                class="fw-bold">{{ $order->customer_name ?? 'Tanpa Nama' }}</span></span>
+                    </div>
+                </div>
+
+                <div class="card-body p-4">
+                    <div class="mb-3 d-flex justify-content-between">
+                        <span class="fw-bold text-gray-800 fs-7">Status Dapur:</span>
+                        @if ($order->order_status == 'pending')
+                            <span class="badge badge-light-warning fs-8 px-2 py-1">Menunggu Dibuat</span>
+                        @elseif($order->order_status == 'cooking')
+                            <span class="badge badge-light-primary fs-8 px-2 py-1">Sedang Dimasak</span>
+                        @elseif($order->order_status == 'served')
+                            <span class="badge badge-light-success fs-8 px-2 py-1">Sudah Disajikan</span>
+                        @endif
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle gs-0 gy-2 mb-0">
+                            <thead>
+                                <tr class="fw-bold text-muted bg-light">
+                                    <th class="ps-4 min-w-100px rounded-start">Menu</th>
+                                    <th class="text-center min-w-70px">Status</th>
+                                    <th class="text-center min-w-50px">Qty</th>
+                                    <th class="text-end pe-4 min-w-100px rounded-end">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($order->details as $detail)
+                                    <tr class="border-bottom border-gray-200">
+                                        <td class="ps-4 py-3">
+                                            <span
+                                                class="text-gray-800 fw-bold fs-7 d-block text-hover-primary">{{ $detail->menu->name ?? 'Menu Dihapus' }}</span>
+                                            @if ($detail->notes)
+                                                <span class="text-muted fs-8 fst-italic"><i
+                                                        class="ki-outline ki-notepad-edit fs-9 me-1"></i>{{ $detail->notes }}</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-center">
+                                            @if ($detail->status == 'pending')
+                                                <span class="badge badge-light-warning fs-9 px-2 py-1"
+                                                    data-bs-toggle="tooltip" title="Masuk antrean dapur">Antre</span>
+                                            @elseif($detail->status == 'cooking')
+                                                <span class="badge badge-light-primary fs-9 px-2 py-1"
+                                                    data-bs-toggle="tooltip" title="Sedang diproses koki">Dimasak</span>
+                                            @else
+                                                <span class="badge badge-light-success fs-9 px-2 py-1"
+                                                    data-bs-toggle="tooltip" title="Sudah siap disajikan">Siap</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-center fw-semibold text-gray-600 fs-7">{{ $detail->qty }}x</td>
+                                        <td class="text-end fw-bold text-gray-800 fs-7 pe-4">Rp
+                                            {{ number_format($detail->subtotal, 0, ',', '.') }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="separator separator-dashed my-3"></div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <span class="fw-bold text-gray-700 fs-6">Total Tagihan</span>
+                        <span class="fw-bolder text-success fs-3">Rp
+                            {{ number_format($order->grand_total, 0, ',', '.') }}</span>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        @if ($order->payment_status == 'unpaid')
+                            <button type="button" class="btn btn-sm btn-success fw-bold w-100"
+                                onclick="openPaymentSusulan({{ $order->id }}, {{ $order->grand_total }})">
+                                <i class="ki-outline ki-wallet fs-4"></i> Lanjutkan Pembayaran
+                            </button>
+                        @else
+                            <button type="button" class="btn btn-sm btn-primary fw-bold w-100"
+                                onclick="window.open('{{ route('kasir.print', $order->id) }}', '_blank', 'width=400,height=600')">
+                                <i class="ki-outline ki-printer fs-4"></i> Cetak Struk
+                            </button>
+                        @endif
+                    </div>
+                </div>
+
+            </div>
+        @endforeach
+
+    </div>
+</div>

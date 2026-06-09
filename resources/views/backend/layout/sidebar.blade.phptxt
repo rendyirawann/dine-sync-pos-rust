@@ -1,0 +1,125 @@
+<div id="kt_app_sidebar" class="app-sidebar align-self-start border border-gray-300 rounded" data-kt-drawer="true"
+    data-kt-drawer-name="app-sidebar" data-kt-drawer-activate="{default: true, lg: false}" data-kt-drawer-overlay="true"
+    data-kt-drawer-width="{default:'200px', '300px': '250px'}" data-kt-drawer-direction="end"
+    data-kt-drawer-toggle="#kt_app_sidebar_mobile_toggle">
+    <!--begin::sidebar-->
+    <div id="kt_app_sidebar_menu" class="app-sidebar-menu card w-100">
+        <!--begin::sidebar wrapper-->
+        <div class="hover-scroll-overlay-y mx-3 my-4" id="kt_app_sidebar_menu_wrapper" data-kt-scroll="true"
+            data-kt-scroll-activate="{default: false, lg: true}" data-kt-scroll-max-height="auto"
+            data-kt-scroll-dependencies="#kt_app_header, #kt_app_toolbar"
+            data-kt-scroll-wrappers="#kt_app_sidebar, #kt_app_sidebar_menu, #kt_app_content"
+            data-kt-scroll-offset="5px">
+
+
+            <!--begin::Menu-->
+            <div class="menu menu-column menu-rounded menu-sub-indention menu-active-bg menu-title-gray-800 menu-state-primary menu-arrow-gray-500 fw-semibold"
+                id="#kt_sidebar_menu" data-kt-menu="true">
+                <!--end:Menu item--><!--begin:Menu item-->
+                <div class="menu-item pt-5">
+                    <!--begin:Menu content-->
+                    <div class="menu-content">
+                        <span class="menu-heading fw-bold text-uppercase fs-7">Master Data</span>
+                    </div>
+                    <!--end:Menu content-->
+                </div>
+                <!--end:Menu item-->
+
+                <!--begin:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link {{ request()->routeIs('satuan.index') ? 'active ' : '' }}"
+                        href="{{ route('satuan.index') }}">
+                        <span class="menu-icon"><i class="ki-outline ki-abstract-12 fs-2"></i>
+                        </span>
+                        <span class="menu-title">Data Satuan</span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+
+
+
+
+                <div data-kt-menu-trigger="click" class="menu-item menu-accordion {{ request()->routeIs('provinsi.index','kabupaten.index','kecamatan.index','desa.index') ? 'show' : '' }}">
+                    <!--begin:Menu link-->
+                    <span class="menu-link  {{ request()->routeIs('provinsi.index','kabupaten.index','kecamatan.index','desa.index') ? 'active ' : '' }}">
+                        <span class="menu-icon">
+                            <i class="ki-outline ki-pointers fs-2">
+                        </i>
+                    </span>
+                    <span class="menu-title">Wilayah</span><span class="menu-arrow">
+                        </span>
+                    </span>
+                    <!--end:Menu link-->
+                    <!--begin:Menu sub-->
+                    <div class="menu-sub menu-sub-accordion" kt-hidden-height="121">
+                        <!--begin:Menu item-->
+                        <div class="menu-item ">
+                                <!--begin:Menu link-->
+                                   <a class="menu-link {{ request()->routeIs('provinsi.index') ? 'active ' : '' }}"
+                        href="{{ route('provinsi.index') }}">
+                                    <span class="menu-bullet">
+                                        <span class="bullet bullet-dot">
+                                    </span>
+                                </span>
+                                <span class="menu-title">Provinsi</span>
+                                </a>
+                                <!--end:Menu link-->
+                            </div>
+                            <!--end:Menu item-->
+                            <!--begin:Menu item-->
+                            <div class="menu-item">
+                                <!--begin:Menu link-->
+                                <a class="menu-link {{ request()->routeIs('kabupaten.index') ? 'active ' : '' }}"
+                        href="{{ route('kabupaten.index') }}">
+                                        <span class="menu-bullet"><span class="bullet bullet-dot">
+                                        </span>
+                                    </span>
+                                    <span class="menu-title">Kabupaten/Kota</span>
+                                    </a>
+                                    <!--end:Menu link-->
+                                </div>
+                                <!--end:Menu item-->
+                                <!--begin:Menu item-->
+                                <div class="menu-item">
+                                    <!--begin:Menu link-->
+                                    <a class="menu-link {{ request()->routeIs('kecamatan.index') ? 'active ' : '' }}"
+                        href="{{ route('kecamatan.index') }}">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot">
+                                        </span>
+                                    </span>
+                                    <span class="menu-title">Kecamatan</span>
+                                    </a>
+                                    <!--end:Menu link-->
+                                </div>
+                                <!--end:Menu item-->
+                                 <!--begin:Menu item-->
+                                <div class="menu-item">
+                                    <!--begin:Menu link-->
+                                    <a class="menu-link {{ request()->routeIs('desa.index') ? 'active ' : '' }}"
+                        href="{{ route('desa.index') }}">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot">
+                                        </span>
+                                    </span>
+                                    <span class="menu-title">Kelurahan/Desa</span>
+                                    </a>
+                                    <!--end:Menu link-->
+                                </div>
+                                <!--end:Menu item-->
+                                </div>
+                                <!--end:Menu sub-->
+                            </div>
+            </div>
+            <!--end::Menu-->
+
+
+
+
+        </div>
+        <!--end::sidebar wrapper-->
+    </div>
+    <!--end::sidebar-->
+</div>
