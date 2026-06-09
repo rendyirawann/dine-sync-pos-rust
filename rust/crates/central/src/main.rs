@@ -1,8 +1,10 @@
 mod auth;
+mod finance;
 mod kasir;
 mod kitchen;
 mod master;
 mod rbac;
+mod report;
 mod ratelimit;
 mod shift;
 mod sync;
@@ -44,8 +46,15 @@ async fn main() -> anyhow::Result<()> {
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
+        .after_connect(|conn, _meta| {
+            Box::pin(async move {
+                // Samakan zona waktu koneksi dgn app (WIB) agar current_date konsisten.
+                sqlx::query("SET TIME ZONE 'Asia/Jakarta'").execute(conn).await?;
+                Ok(())
+            })
+        })
         .connect_lazy(&db_url)?;
-    tracing::info!("Pool PostgreSQL siap (lazy — connect saat dipakai, agar bisa boot offline)");
+    tracing::info!("Pool PostgreSQL siap (lazy, TZ=Asia/Jakarta)");
 
     // Path absolut berbasis lokasi crate (cwd-independent), pakai '/' agar aman di Windows.
     let manifest_dir = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
@@ -123,6 +132,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/ingredients", get(master::ingredients_index).post(master::ingredient_store))
         .route("/admin/ingredients/{id}", post(master::ingredient_update))
         .route("/admin/ingredients/{id}/delete", post(master::ingredient_delete))
+        .route("/admin/expenses", get(finance::expenses_index).post(finance::expense_store))
+        .route("/admin/expenses/budget", post(finance::set_budget))
+        .route("/admin/expenses/{id}", post(finance::expense_update))
+        .route("/admin/expenses/{id}/delete", post(finance::expense_delete))
+        .route("/admin/reports/sales", get(report::sales_report))
+        .route("/admin/reports/items", get(report::item_sales_report))
         .route("/admin/sync", get(sync::sync_page))
         .route("/admin/sync/now", post(sync::sync_run))
         .route("/admin/sync/toggle", post(sync::toggle_offline))

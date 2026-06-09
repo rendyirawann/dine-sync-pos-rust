@@ -248,9 +248,11 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 ### Fase 4 — Lebarkan Modul — 🚧 SEDANG BERJALAN
 - [x] **Kitchen display** (`kitchen.rs`, `kitchen/index.html`) — SELESAI 2026-06-10: kartu order aktif (item + tab Selesai), tombol "Masak Semua"→cooking & "Selesai"→served+item done. **Offline:** baca antrian order lokal (read-only). Terverifikasi (pending→cooking→served). *Ditunda:* stock deduction (butuh resep/batch), Reverb TTS (Fase 5), modal resep.
 - [x] **Master data CRUD LENGKAP** SELESAI 2026-06-10: **Kategori, Menu, Meja, Promo, Supplier, Bahan** (`master.rs`, `master/{categories,menus,tables,promos,suppliers,ingredients}.html`): list + tambah/edit (modal) + hapus dgn **guard relasi**, gate `view_data_master`, slug auto utk kategori. Semua terverifikasi (create/update/delete).
+- [x] **Expense + Budget/Target harian** SELESAI 2026-06-10 (`finance.rs`, `finance/expenses.html`): CRUD pengeluaran (modal) + set budget & target harian (upsert `ON CONFLICT(date)`), gate `view_finance`, user_id pencatat. Terintegrasi ke widget sidebar & dashboard (Operasional). Terverifikasi.
+- [x] **Report Sales + Item Sales** SELESAI 2026-06-10 (`report.rs`, `reports/{sales,items}.html`): filter rentang tanggal + metode, ringkasan omzet/HPP/laba/jumlah transaksi, tabel transaksi & menu terlaris. Gate `view_report`. Terverifikasi dgn data order tes.
 - [ ] Queue, Frontend customer (scan QR — online-only).
-- [ ] Finance/Stock (stok shared-mutable + konflik delta), Stock Opname, Expense.
-- [ ] Report (Sales, Item Sales), User Management (User, Role), Log Activity.
+- [ ] Stock (stok shared-mutable + konflik delta), Stock Opname.
+- [ ] User Management (User, Role), Log Activity.
 
 ### Fase 5 — Integrasi & Polish
 - [ ] Midtrans (server pusat, online-only).
@@ -282,7 +284,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [x] **Fase 1** — Auth + RBAC ✅ 2026-06-09
 - [x] **Fase 2** — Slice Kasir (online) ✅ 2026-06-10
 - [~] **Fase 3** — Local-first (CORE/write-path ✅ 2026-06-10; read-offline + pull + konflik stok = sisa)
-- [~] **Fase 4** — Lebarkan modul (Kitchen ✅ 2026-06-10; master/inventory/laporan/user = sisa)
+- [~] **Fase 4** — Lebarkan modul (Kitchen ✅, Master Data ✅, Expense ✅, Laporan ✅ 2026-06-10; stok/queue/user = sisa)
 - [ ] **Fase 5** — Integrasi & polish
 - [ ] **Fase 6** — Cutover
 
@@ -293,6 +295,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - 2026-06-09 — **Fase 1 SELESAI menyeluruh.** Login+session, RBAC (CurrentUser extractor, Superadmin bypass, 50 izin termuat), hardening (CSRF, rate-limit lockout bertingkat, activity_log, last_login). Deps baru: bcrypt 0.19, tower-sessions 0.15, uuid v4. Catatan: session masih MemoryStore (reset saat restart) — ganti store persisten saat Fase 3.
 - 2026-06-10 — **Kasir read-offline SELESAI.** `sync::pull_master` (meja/menu/kategori/setting → SQLite, full-refresh). Handler kasir `index`/`create_order`/`table_detail` cabang online(Postgres)/offline(SQLite lokal). store_order_local tandai `local_tables` occupied. Banner OFFLINE. Boot `connect_lazy` + initial pull. KASIR kini local-first penuh (baca+tulis+sync). Terverifikasi offline.
 - 2026-06-10 — **Keputusan scope offline:** local-first HANYA untuk **Kasir + Kitchen** (layar operasional). Dashboard/laporan/master/user = online-only. Menyederhanakan sisa Fase 3 jadi: read-offline Kasir (pull master data) + Kitchen offline (saat Kitchen dibangun di Fase 4).
+- 2026-06-10 — **Fase 4: Expense + Laporan SELESAI.** `finance.rs` (CRUD pengeluaran + set budget/target harian via upsert `ON CONFLICT(date) DO UPDATE`, gate view_finance) + `finance/expenses.html`. `report.rs` (Sales: filter tanggal/metode, ringkasan omzet/HPP/laba/jumlah; Item Sales: menu terlaris; gate view_report, default rentang awal-bulan→hari-ini) + `reports/{sales,items}.html`. **Fix penting:** koneksi Postgres kini `SET TIME ZONE 'Asia/Jakarta'` via `after_connect` — sebelumnya `current_date` koneksi sqlx (UTC) beda hari dgn data lokal di dekat tengah malam, bikin widget "hari ini" (budget/target/expense) meleset. Terverifikasi: expense→dashboard, budget/target→sidebar, laporan teragregasi benar.
 - 2026-06-10 — **Fase 4: Master Data CRUD LENGKAP** (Promo/Supplier/Bahan ditambahkan ke Kategori/Menu/Meja). promos(name,discount_type,discount_value int,is_active), suppliers(name + contact/phone/address nullable), ingredients(name,unit,minimum_stock). Guard hapus: promo↔orders, supplier↔ingredient_batches, bahan↔menu_ingredients/ingredient_batches. Terverifikasi.
 - 2026-06-10 — **Fase 4: Master Data CRUD (Kategori/Menu/Meja) SELESAI.** `master.rs` (form POST + redirect flash, modal create/edit, guard relasi sebelum hapus, gate view_data_master, slugify). Templates `master/{categories,menus,tables}.html`. Kolom: categories(name,slug NOT NULL), menus(uuid gen_random_uuid, category_id, name, price, is_available, discount_percent=0), tables(uuid gen, table_number, capacity, status). Terverifikasi create/update/delete+guard. Integrasi: edit menu online → pull_master refresh cache lokal → kasir offline dpt menu baru. Sisa master: Promo/Supplier/Ingredient.
 - 2026-06-10 — **Fase 3 CORE SELESAI** (local-first write-path). SQLite lokal (`sqlx` sqlite feature — `libsqlite3-sys` kompilasi pakai gcc/WinLibs ✓), `sync.rs` (central_online ping+toggle, store_order_local, sync_now idempoten `ON CONFLICT(uuid)`, auto_sync_loop 30s), UI `/admin/sync`. Postgres `connect_lazy`. AppState +local(SqlitePool) +force_offline(AtomicBool). Terverifikasi: offline→device→sync→pusat tanpa dobel. SISA (besar): read-offline semua halaman, pull master data, konflik stok delta.

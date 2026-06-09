@@ -1,0 +1,49 @@
+{% extends "layout/app.html" %}
+{% block title %}Laporan Penjualan — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        <h1 class="fw-bold fs-2 mb-6"><i class="ki-outline ki-chart-simple fs-1 me-2"></i> Laporan Penjualan</h1>
+
+        <div class="card shadow-sm mb-6"><div class="card-body">
+            <form method="GET" action="/admin/reports/sales" class="row g-4 align-items-end">
+                <div class="col-md-3"><label class="form-label fw-semibold">Dari Tanggal</label><input type="date" name="start" class="form-control form-control-solid" value="{{ start }}"></div>
+                <div class="col-md-3"><label class="form-label fw-semibold">Sampai Tanggal</label><input type="date" name="end" class="form-control form-control-solid" value="{{ end }}"></div>
+                <div class="col-md-3"><label class="form-label fw-semibold">Metode</label>
+                    <select name="method" class="form-select form-select-solid">
+                        <option value="all" {% if method == 'all' %}selected{% endif %}>Semua</option>
+                        <option value="cash" {% if method == 'cash' %}selected{% endif %}>Tunai</option>
+                        <option value="midtrans" {% if method == 'midtrans' %}selected{% endif %}>Midtrans</option>
+                    </select></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100"><i class="ki-outline ki-filter fs-3"></i> Filter</button></div>
+            </form>
+        </div></div>
+
+        <div class="row g-5 mb-6">
+            <div class="col-md-3"><div class="card bg-light-success border-0 shadow-sm"><div class="card-body p-5"><div class="fs-7 fw-semibold text-success">Total Omzet</div><div class="fs-2hx fw-bold text-gray-800">Rp {{ revenue_fmt }}</div></div></div></div>
+            <div class="col-md-3"><div class="card bg-light-danger border-0 shadow-sm"><div class="card-body p-5"><div class="fs-7 fw-semibold text-danger">Total HPP</div><div class="fs-2hx fw-bold text-gray-800">Rp {{ hpp_fmt }}</div></div></div></div>
+            <div class="col-md-3"><div class="card bg-light-primary border-0 shadow-sm"><div class="card-body p-5"><div class="fs-7 fw-semibold text-primary">Laba Kotor</div><div class="fs-2hx fw-bold text-gray-800">Rp {{ profit_fmt }}</div></div></div></div>
+            <div class="col-md-3"><div class="card bg-light-warning border-0 shadow-sm"><div class="card-body p-5"><div class="fs-7 fw-semibold text-warning">Jumlah Transaksi</div><div class="fs-2hx fw-bold text-gray-800">{{ count }}</div></div></div></div>
+        </div>
+
+        <div class="card shadow-sm"><div class="card-body">
+            <table class="table table-row-dashed align-middle gy-3">
+                <thead><tr class="fw-bold text-muted"><th>Waktu</th><th>Invoice</th><th>Pelanggan</th><th>Meja</th><th class="text-center">Metode</th><th class="text-end">Diskon</th><th class="text-end">Total</th></tr></thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="text-muted">{{ r.date }}</td>
+                        <td><span class="fw-bold text-primary">#{{ r.invoice }}</span></td>
+                        <td>{{ r.customer }}</td>
+                        <td><span class="text-muted">{{ r.table }}</span></td>
+                        <td class="text-center"><span class="badge badge-light-info text-uppercase">{{ r.method }}</span></td>
+                        <td class="text-end text-danger">{% if r.discount_fmt != '0' %}- Rp {{ r.discount_fmt }}{% else %}-{% endif %}</td>
+                        <td class="text-end fw-bold text-success">Rp {{ r.grand_fmt }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="7" class="text-center text-muted py-5">Tidak ada transaksi pada rentang ini.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "layout/app.html" %}
+{% block title %}Pengeluaran — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+
+        <div class="card shadow-sm mb-6">
+            <div class="card-header"><h3 class="card-title fw-bold"><i class="ki-outline ki-setting-3 fs-2 me-2"></i> Atur Budget &amp; Target Harian</h3></div>
+            <div class="card-body">
+                <form method="POST" action="/admin/expenses/budget" class="row g-4 align-items-end">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <div class="col-md-3"><label class="form-label fw-semibold">Tanggal</label><input type="date" name="date" class="form-control form-control-solid" value="{{ today }}" required></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold">Budget Harian (Rp)</label><input type="number" name="budget" class="form-control form-control-solid" value="{{ today_budget }}" min="0" required></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold">Target Penjualan (Rp)</label><input type="number" name="target" class="form-control form-control-solid" value="{{ today_target }}" min="0" required></div>
+                    <div class="col-md-3"><button type="submit" class="btn btn-primary w-100"><i class="ki-outline ki-check fs-3"></i> Simpan</button></div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h3 class="card-title fw-bold"><i class="ki-outline ki-wallet fs-2 me-2"></i> Pengeluaran Operasional</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add"><i class="ki-outline ki-plus fs-3"></i> Catat Pengeluaran</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-row-dashed align-middle gy-3">
+                    <thead><tr class="fw-bold text-muted"><th>Tanggal</th><th>Kategori / Catatan</th><th class="text-end">Jumlah</th><th>Oleh</th><th class="text-end">Aksi</th></tr></thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td><span class="badge badge-light-primary">{{ r.date_fmt }}</span></td>
+                            <td><span class="fw-bold text-gray-800">{{ r.category }}</span>{% if r.notes %}<div class="text-muted fs-8">{{ r.notes }}</div>{% endif %}</td>
+                            <td class="text-end fw-bold text-danger">Rp {{ r.amount_fmt }}</td>
+                            <td class="text-muted">{{ r.user_name }}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-light-primary e-edit" data-id="{{ r.id }}" data-date="{{ r.date_raw }}" data-category="{{ r.category }}" data-amount="{{ r.amount }}" data-notes="{{ r.notes | default(value='') }}">Edit</button>
+                                <form method="POST" action="/admin/expenses/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus pengeluaran ini?')"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-danger">Hapus</button></form>
+                            </td>
+                        </tr>
+                        {% else %}<tr><td colspan="5" class="text-center text-muted py-5">Belum ada pengeluaran.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" id="eForm">
+        <div class="modal-header"><h2 class="fw-bold" id="modalTitle">Catat Pengeluaran</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <div class="mb-4"><label class="form-label required fw-semibold">Tanggal</label><input type="date" name="date" id="eDate" class="form-control form-control-solid" value="{{ today }}" required></div>
+            <div class="mb-4"><label class="form-label required fw-semibold">Kategori</label><input type="text" name="category" id="eCat" class="form-control form-control-solid" required placeholder="Mis: Gaji, Listrik, Belanja Bahan"></div>
+            <div class="mb-4"><label class="form-label required fw-semibold">Jumlah (Rp)</label><input type="number" name="amount" id="eAmount" class="form-control form-control-solid" min="0" required></div>
+            <div class="mb-4"><label class="form-label fw-semibold">Catatan</label><input type="text" name="notes" id="eNotes" class="form-control form-control-solid"></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+    function openCreate() { document.getElementById('modalTitle').textContent='Catat Pengeluaran'; document.getElementById('eForm').action='/admin/expenses'; document.getElementById('eCat').value=''; document.getElementById('eAmount').value=''; document.getElementById('eNotes').value=''; $('#formModal').modal('show'); }
+    document.getElementById('btn-add').addEventListener('click', openCreate);
+    document.querySelectorAll('.e-edit').forEach(b => b.addEventListener('click', function () {
+        document.getElementById('modalTitle').textContent='Edit Pengeluaran';
+        document.getElementById('eForm').action='/admin/expenses/'+this.dataset.id;
+        document.getElementById('eDate').value=this.dataset.date;
+        document.getElementById('eCat').value=this.dataset.category;
+        document.getElementById('eAmount').value=this.dataset.amount;
+        document.getElementById('eNotes').value=this.dataset.notes;
+        $('#formModal').modal('show');
+    }));
+</script>
+{% endraw %}
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "layout/app.html" %}
+{% block title %}Laporan Menu Terjual — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        <h1 class="fw-bold fs-2 mb-6"><i class="ki-outline ki-chart-pie-simple fs-1 me-2"></i> Laporan Menu Terjual</h1>
+
+        <div class="card shadow-sm mb-6"><div class="card-body">
+            <form method="GET" action="/admin/reports/items" class="row g-4 align-items-end">
+                <div class="col-md-4"><label class="form-label fw-semibold">Dari Tanggal</label><input type="date" name="start" class="form-control form-control-solid" value="{{ start }}"></div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Sampai Tanggal</label><input type="date" name="end" class="form-control form-control-solid" value="{{ end }}"></div>
+                <div class="col-md-4"><button type="submit" class="btn btn-primary w-100"><i class="ki-outline ki-filter fs-3"></i> Filter</button></div>
+            </form>
+        </div></div>
+
+        <div class="card shadow-sm"><div class="card-body">
+            <table class="table table-row-dashed align-middle gy-3">
+                <thead><tr class="fw-bold text-muted"><th class="w-50px">#</th><th>Menu</th><th>Kategori</th><th class="text-center">Qty Terjual</th><th class="text-end">Total Omzet</th></tr></thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td><span class="badge badge-light-primary">{{ r.rank }}</span></td>
+                        <td class="fw-bold text-gray-800">{{ r.name }}</td>
+                        <td><span class="badge badge-light-info">{{ r.category }}</span></td>
+                        <td class="text-center fw-bold fs-5">{{ r.qty }}</td>
+                        <td class="text-end fw-bold text-success">Rp {{ r.revenue_fmt }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="5" class="text-center text-muted py-5">Belum ada menu terjual pada rentang ini.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
