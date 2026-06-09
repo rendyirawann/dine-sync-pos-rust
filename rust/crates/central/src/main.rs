@@ -1,0 +1,220 @@
+mod auth;
+mod rbac;
+mod ratelimit;
+mod shift;
+mod view;
+
+use std::sync::Arc;
+
+use axum::{
+    extract::State,
+    http::StatusCode,
+    middleware::from_fn,
+    response::{Html, IntoResponse, Redirect, Response},
+    routing::{get, post},
+    Router,
+};
+
+use rbac::CurrentUser;
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use tera::Tera;
+use tower_http::services::ServeDir;
+use tower_sessions::{MemoryStore, SessionManagerLayer};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+    pub tera: Arc<Tera>,
+    pub limiter: Arc<ratelimit::RateLimiter>,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
+    dotenvy::dotenv().ok();
+
+    let db_url = std::env::var("DATABASE_URL")
+        .expect("DATABASE_URL belum di-set (lihat rust/crates/central/.env)");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&db_url)
+        .await?;
+    tracing::info!("Terhubung ke PostgreSQL");
+
+    // Path absolut berbasis lokasi crate (cwd-independent), pakai '/' agar aman di Windows.
+    let manifest_dir = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
+    let tera = Tera::new(&format!("{manifest_dir}/templates/**/*.html"))?;
+    let assets_dir = format!("{manifest_dir}/../../../public/assets");
+
+    let state = AppState {
+        pool,
+        tera: Arc::new(tera),
+        limiter: Arc::new(ratelimit::RateLimiter::default()),
+    };
+
+    // Session disimpan di memori (cukup untuk Fase 1; nanti diganti store persisten).
+    let session_layer = SessionManagerLayer::new(MemoryStore::default())
+        .with_secure(false)
+        .with_name("dinesync_session");
+
+    // Rute yang wajib login.
+    let protected = Router::new()
+        .route("/admin/dashboard", get(dashboard))
+        .route("/admin/users", get(users_stub))
+        .route("/admin/shifts", get(shift::shift_index))
+        .route("/admin/shifts/open", post(shift::shift_open))
+        .route("/admin/shifts/close/{id}", post(shift::shift_close))
+        .route_layer(from_fn(auth::require_auth));
+
+    let app = Router::new()
+        .route("/", get(|| async { Redirect::to("/admin/dashboard") }))
+        .route("/health", get(|| async { "ok" }))
+        .route(
+            "/admin/login",
+            get(auth::login_page).post(auth::login_submit),
+        )
+        .route("/admin/logout", get(auth::logout).post(auth::logout))
+        .merge(protected)
+        .nest_service("/assets", ServeDir::new(assets_dir))
+        .with_state(state)
+        .layer(session_layer);
+
+    let addr = "127.0.0.1:8088";
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    tracing::info!("DineSync (central/Rust) jalan di http://{addr}");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct TopProduct {
+    name: String,
+    category: String,
+    qty: i64,
+    revenue_fmt: String,
+}
+
+#[derive(serde::Serialize)]
+struct UnavailableMenu {
+    name: String,
+    category: String,
+}
+
+/// Format ribuan dengan titik, mirip number_format(n, 0, ',', '.').
+pub fn format_rupiah(n: i64) -> String {
+    let digits = n.unsigned_abs().to_string();
+    let bytes = digits.as_bytes();
+    let mut out = String::new();
+    for (i, c) in bytes.iter().enumerate() {
+        if i > 0 && (bytes.len() - i) % 3 == 0 {
+            out.push('.');
+        }
+        out.push(*c as char);
+    }
+    if n < 0 {
+        format!("-{out}")
+    } else {
+        out
+    }
+}
+
+/// Dashboard analytics (terproteksi) — meniru dashboard Laravel.
+/// Semua query memakai `unwrap_or` agar halaman tetap render meski data kosong.
+async fn dashboard(user: CurrentUser, State(state): State<AppState>) -> Html<String> {
+    let pool = &state.pool;
+
+    let revenue: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(grand_total),0)::bigint FROM orders WHERE payment_status='paid' AND created_at >= date_trunc('month', now())",
+    ).fetch_one(pool).await.unwrap_or(0);
+    let hpp: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(od.hpp),0)::bigint FROM order_details od JOIN orders o ON o.id = od.order_id WHERE o.payment_status='paid' AND o.created_at >= date_trunc('month', now())",
+    ).fetch_one(pool).await.unwrap_or(0);
+    let expense: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount),0)::bigint FROM expenses WHERE date >= date_trunc('month', now())::date",
+    ).fetch_one(pool).await.unwrap_or(0);
+    let net_profit = revenue - hpp - expense;
+
+    let top_products: Vec<TopProduct> = sqlx::query_as::<_, (String, Option<String>, i64, i64)>(
+        "SELECT m.name, c.name, COALESCE(SUM(od.qty),0)::bigint, COALESCE(SUM(od.subtotal),0)::bigint \
+         FROM order_details od JOIN orders o ON o.id = od.order_id JOIN menus m ON m.id = od.menu_id \
+         LEFT JOIN categories c ON c.id = m.category_id \
+         WHERE o.payment_status='paid' AND o.created_at >= date_trunc('month', now()) \
+         GROUP BY m.id, m.name, c.name ORDER BY 3 DESC LIMIT 5",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(name, category, qty, rev)| TopProduct {
+        name,
+        category: category.unwrap_or_else(|| "-".into()),
+        qty,
+        revenue_fmt: format_rupiah(rev),
+    })
+    .collect();
+
+    let unavailable_menus: Vec<UnavailableMenu> = sqlx::query_as::<_, (String, Option<String>)>(
+        "SELECT m.name, c.name FROM menus m LEFT JOIN categories c ON c.id = m.category_id WHERE m.is_available = false ORDER BY m.name",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(name, category)| UnavailableMenu {
+        name,
+        category: category.unwrap_or_else(|| "-".into()),
+    })
+    .collect();
+
+    let chart_rows: Vec<(String, i64, i64)> = sqlx::query_as(
+        "SELECT to_char(d, 'DD Mon') AS label, \
+            COALESCE(s.total,0)::bigint AS sales, COALESCE(t.amount,0)::bigint AS target \
+         FROM generate_series(date_trunc('month', now()), now(), interval '1 day') d \
+         LEFT JOIN (SELECT created_at::date dt, SUM(grand_total) total FROM orders WHERE payment_status='paid' AND created_at >= date_trunc('month', now()) GROUP BY 1) s ON s.dt = d::date \
+         LEFT JOIN daily_sales_targets t ON t.date = d::date \
+         ORDER BY d",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let chart_categories: Vec<String> = chart_rows.iter().map(|r| r.0.clone()).collect();
+    let chart_sales: Vec<i64> = chart_rows.iter().map(|r| r.1).collect();
+    let chart_targets: Vec<i64> = chart_rows.iter().map(|r| r.2).collect();
+
+    let mut ctx = view::base_context(&state, &user, "dashboard").await;
+    ctx.insert("revenue_fmt", &format_rupiah(revenue));
+    ctx.insert("hpp_fmt", &format_rupiah(hpp));
+    ctx.insert("expense_fmt", &format_rupiah(expense));
+    ctx.insert("net_profit_fmt", &format_rupiah(net_profit));
+    ctx.insert("top_products", &top_products);
+    ctx.insert("unavailable_menus", &unavailable_menus);
+    ctx.insert("chart_categories", &chart_categories);
+    ctx.insert("chart_sales", &chart_sales);
+    ctx.insert("chart_targets", &chart_targets);
+
+    match state.tera.render("dashboard.html", &ctx) {
+        Ok(html) => Html(html),
+        Err(e) => Html(format!("<pre>Template error: {e:#}</pre>")),
+    }
+}
+
+/// Contoh route yang dijaga permission (kelak jadi Manajemen User di Fase 4).
+async fn users_stub(user: CurrentUser) -> Response {
+    if !user.can("user.list") {
+        return (
+            StatusCode::FORBIDDEN,
+            Html("<h3>403 — Anda tidak punya izin <code>user.list</code></h3>".to_string()),
+        )
+            .into_response();
+    }
+    Html(format!(
+        "<h3>Manajemen User (stub)</h3><p>Halo <b>{}</b>, halaman ini dijaga permission <code>user.list</code>.</p>",
+        user.name
+    ))
+    .into_response()
+}

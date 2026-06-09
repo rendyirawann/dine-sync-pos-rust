@@ -1,0 +1,69 @@
+<div class="app-header-menu app-header-mobile-drawer align-items-start align-items-lg-center w-100" data-kt-drawer="true"
+    data-kt-drawer-name="app-header-menu" data-kt-drawer-activate="{default: true, lg: false}"
+    data-kt-drawer-overlay="true" data-kt-drawer-width="250px" data-kt-drawer-direction="end"
+    data-kt-drawer-toggle="#kt_app_header_menu_toggle" data-kt-swapper="true"
+    data-kt-swapper-mode="{default: 'append', lg: 'prepend'}"
+    data-kt-swapper-parent="{default: '#kt_app_body', lg: '#kt_app_header_wrapper'}">
+    <div class="menu menu-rounded menu-active-bg menu-state-primary menu-column menu-lg-row menu-title-gray-700 menu-icon-gray-500 menu-arrow-gray-500 menu-bullet-gray-500 my-5 my-lg-0 align-items-stretch fw-semibold px-2 px-lg-0"
+        id="kt_app_header_menu" data-kt-menu="true">
+
+        <div class="menu-item menu-here-bg me-0 me-lg-2 menu-hover-bg menu-hover-bg-warning {% if active == 'dashboard' %}here show {% endif %}">
+            <a href="/admin/dashboard" class="menu-link px-4 {% if active == 'dashboard' %}active {% endif %}">
+                <span class="menu-title">Dashboards</span>
+            </a>
+        </div>
+
+        {% if can_master %}
+        <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start"
+            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention me-0 me-lg-2">
+            <span class="menu-link py-3"><span class="menu-title">Data Master</span><span class="menu-arrow d-lg-none"></span></span>
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-lg-2 py-lg-4 w-lg-210px">
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/categories"><span class="menu-icon"><i class="ki-outline ki-category fs-2"></i></span><span class="menu-title">Kategori Menu</span></a></div>
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/menus"><span class="menu-icon"><i class="ki-outline ki-coffee fs-2"></i></span><span class="menu-title">Menu Makanan &amp; Minuman</span></a></div>
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/tables"><span class="menu-icon"><i class="ki-outline ki-abstract-14 fs-2"></i></span><span class="menu-title">Manajemen Meja</span></a></div>
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/promos"><span class="menu-icon"><i class="ki-outline ki-discount fs-2"></i></span><span class="menu-title">Promo &amp; Diskon</span></a></div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_finance %}
+        <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start"
+            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention me-0 me-lg-2">
+            <span class="menu-link py-3"><span class="menu-title">Finance</span><span class="menu-arrow d-lg-none"></span></span>
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-lg-2 py-lg-4 w-lg-210px">
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/expenses"><span class="menu-icon"><i class="ki-outline ki-rocket fs-2"></i></span><span class="menu-title">Expenses Management</span></a></div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_report %}
+        <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start"
+            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention me-0 me-lg-2">
+            <span class="menu-link py-3"><span class="menu-title">Report</span><span class="menu-arrow d-lg-none"></span></span>
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-lg-2 py-lg-4 w-lg-210px">
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/reports/sales"><span class="menu-icon"><i class="ki-outline ki-rocket fs-2"></i></span><span class="menu-title">Sales Report</span></a></div>
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/reports/items"><span class="menu-icon"><i class="ki-outline ki-rocket fs-2"></i></span><span class="menu-title">Sales Items Report</span></a></div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_resources %}
+        <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start"
+            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention me-0 me-lg-2">
+            <span class="menu-link py-3"><span class="menu-title">Resources</span><span class="menu-arrow d-lg-none"></span></span>
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-lg-2 py-lg-4 w-lg-210px">
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/users"><span class="menu-icon"><i class="ki-outline ki-rocket fs-2"></i></span><span class="menu-title">User Management</span></a></div>
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/roles"><span class="menu-icon"><i class="ki-outline ki-code fs-2"></i></span><span class="menu-title">Role Management</span></a></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start"
+            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention me-0 me-lg-2">
+            <span class="menu-link py-3"><span class="menu-title">Help</span><span class="menu-arrow d-lg-none"></span></span>
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-lg-2 py-lg-4 w-lg-200px">
+                <div class="menu-item"><a class="menu-link py-3" href="/admin/log-activity"><span class="menu-icon"><i class="ki-outline ki-rocket fs-2"></i></span><span class="menu-title">Log Activity</span></a></div>
+            </div>
+        </div>
+    </div>
+</div>

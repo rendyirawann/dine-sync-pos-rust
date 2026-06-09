@@ -208,22 +208,32 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 
 > Tiap fase menghasilkan sesuatu yang **jalan & bisa dievaluasi**. Boleh berhenti/ubah arah di antara fase.
 
-### Fase 0 — Fondasi *(online dulu)*
-- [ ] Install Rust toolchain (rustup) di Windows.
-- [ ] Scaffold workspace Cargo: crate `central` + `device` + `shared`.
-- [ ] Axum "hello" + koneksi ke PostgreSQL eksisting (read-only).
-- [ ] Render **1 halaman Metronic** (mis. login/dashboard) via Tera dari data nyata.
-- **Acceptance:** buka `localhost`, lihat 1 halaman Metronic yang datanya dari Postgres.
+### Fase 0 — Fondasi *(online dulu)* — ✅ SELESAI 2026-06-09
+- [x] Install Rust toolchain (rustup) di Windows → `stable-x86_64-pc-windows-gnu` + WinLibs MinGW-w64 (dlltool/gcc).
+- [x] Scaffold workspace Cargo: crate `central` (device + shared menyusul saat dibutuhkan).
+- [x] Axum + koneksi ke PostgreSQL eksisting via SQLx (port 5433, tanpa TLS).
+- [x] Render **1 halaman Metronic** via Tera dari data nyata (counts: users/menus/categories/orders).
+- **Acceptance:** ✅ `http://127.0.0.1:8088` menampilkan halaman Metronic dgn data dari Postgres; aset Metronic disajikan dari `public/assets`.
+- **Lokasi kode:** `rust/crates/central/` (`src/main.rs`, `templates/dashboard.html`, `.env`). Jalankan: `cargo run` dari `rust/crates/central/`.
 
-### Fase 1 — Auth + RBAC
-- [ ] Login/logout + session.
-- [ ] Port roles & permissions, middleware proteksi route.
-- **Acceptance:** bisa login, route terproteksi sesuai role.
+### Fase 1 — Auth + RBAC — ✅ SELESAI 2026-06-09
+- [x] Login/logout + session (tower-sessions MemoryStore); login multi-field (email/no_wa/name) + verifikasi **bcrypt hash Laravel**.
+- [x] RBAC: muat role & permission dari tabel spatie, extractor `CurrentUser` + `.can()`, **bypass Superadmin** (mirip Gate::before).
+- [x] Hardening: **CSRF** token (session), **rate-limit lockout bertingkat** (3→10s/4→15s/5→20s/6+→60s), **activity_log** (login/logout) + update `last_login`/`last_ip`.
+- [x] **Admin shell Metronic** (Step 4): base layout Tera (`layout/app.html`) + **sidebar** (logo, dropdown user, widget target/budget, grid menu, Settings) + **header menu** (Dashboards/Data Master/Finance/Report/Resources/Help) + footer — di-port verbatim dari Blade. Menu **ber-permission**, link ke path Rust `/admin/...`. Dashboard `extends` shell.
+- **Acceptance:** ✅ Terverifikasi via HTTP+DB — login bcrypt 200, CSRF tanpa token 419, rate-limit 422/422/429, activity_log +1, role/permission termuat (Superadmin 50 izin), route ber-permission ditegakkan, dashboard render shell penuh (25KB).
+- **Kode:** `auth.rs`, `rbac.rs`, `ratelimit.rs`, `view.rs`, `templates/auth/login.html`, `templates/layout/{app,menu,sidebar,footer}.html`, `templates/dashboard.html`.
+- **Sisa (ditunda, non-blok):** session store persisten (kini in-memory → reset saat restart), CSRF untuk semua POST mulai Fase 2, parsing detail user-agent di activity log.
 
-### Fase 2 — Slice Kasir/Order *(online)*
-- [ ] Daftar menu, buat order, order detail, bayar tunai, cetak struk.
-- [ ] Manajemen shift dasar.
+### Fase 2 — Slice Kasir/Order *(online)* — 🚧 SEDANG BERJALAN
+- [x] **2.1 Shift** — buka/tutup shift (`shift.rs`, `kasir/shift.html`): modal kas awal, target+budget harian (saat shift pertama hari itu), hitung selisih kas saat tutup, riwayat 10 terakhir. CSRF + redirect flash. **Terverifikasi** (buka→DB, tutup→selisih 0 "Pas").
+- [x] **Sidebar widget hidup** — `view::base_context` kini async + query data nyata hari ini (target/budget/income/spent), dipakai semua halaman shell.
+- [ ] 2.2 Kasir index (peta meja + modal pilih/lihat).
+- [ ] 2.3 Order page (grid menu per kategori + keranjang).
+- [ ] 2.4 Simpan order (tunai) + cetak struk.
+- [ ] 2.5 Bayar susulan + kosongkan meja.
 - **Acceptance:** alur order tunai penuh end-to-end di Rust terhadap Postgres.
+- **Ditunda:** Midtrans (Fase 5), promo/diskon (opsional), potongan stok/HPP (Fase 4).
 
 ### Fase 3 — Local-First untuk slice Kasir *(INTI)*
 - [ ] Tambah SQLite lokal + jalankan app di device.
@@ -265,8 +275,8 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 
 ## 13. Checklist Progres (update tiap sesi)
 
-- [ ] **Fase 0** — Fondasi
-- [ ] **Fase 1** — Auth + RBAC
+- [x] **Fase 0** — Fondasi ✅ 2026-06-09
+- [x] **Fase 1** — Auth + RBAC ✅ 2026-06-09
 - [ ] **Fase 2** — Slice Kasir (online)
 - [ ] **Fase 3** — Local-first Kasir (sync engine)
 - [ ] **Fase 4** — Lebarkan modul
@@ -276,6 +286,10 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 **Log keputusan:**
 - 2026-06-09 — Sepakat rewrite Rust local-first, pertahankan Metronic, stack Axum+SQLx+Tera, SQLite lokal + Postgres pusat. Toolchain Rust belum terinstal.
 - 2026-06-09 — Skala dikonfirmasi: **1 outlet, tanpa multi-tenant**. Scan QR customer **online-only** (tidak offline). Project di-push ke GitHub: `rendyirawann/dine-sync-pos-rust`. Mulai Fase 0.
+- 2026-06-09 — **Fase 0 SELESAI.** Toolchain: GNU + WinLibs MinGW-w64 (perlu `dlltool` utk `windows-sys`, `gcc` utk SQLite nanti). Stack pure-Rust terbukti jalan (Axum 0.8 + SQLx 0.9 postgres tanpa TLS + Tera 1.20). Server `rust/crates/central` render Metronic dari Postgres di :8088.
+- 2026-06-09 — **Fase 1 SELESAI menyeluruh.** Login+session, RBAC (CurrentUser extractor, Superadmin bypass, 50 izin termuat), hardening (CSRF, rate-limit lockout bertingkat, activity_log, last_login). Deps baru: bcrypt 0.19, tower-sessions 0.15, uuid v4. Catatan: session masih MemoryStore (reset saat restart) — ganti store persisten saat Fase 3.
+- 2026-06-09 — **Admin shell Metronic di-port** (atas permintaan user agar tampilan tuntas di Fase 1): `layout/app.html` (base) + `layout/{menu,sidebar,footer}.html` + `view.rs` (`base_context`). Menu ber-permission, link → path Rust. Avatar pakai default Metronic (`/assets/media/avatars/blank.png`) karena `/storage` belum disajikan. Halaman Fase 2+ tinggal `{% extends "layout/app.html" %}`.
+- 2026-06-09 — **Login & Dashboard disamakan penuh dgn Laravel** (permintaan user). Login: restore Manual Book (tombol melayang + viewer PDF.js) + loader sukses (three-dot+progress) + countdown lockout 429. Dashboard analytics di-port (4 kartu omzet/HPP/expense/laba, grafik ApexCharts omzet-vs-target, top 5 menu, tabel menu habis, modal HPP) dgn query data nyata di Rust (`format_rupiah` + `generate_series` chart). Data 0/kosong krn belum ada transaksi, query siap. `{% block scripts %}` ditambah di `app.html`. **Ditunda:** HPP detail DataTable (ajax server-side) → Fase 2.
 
 ---
 

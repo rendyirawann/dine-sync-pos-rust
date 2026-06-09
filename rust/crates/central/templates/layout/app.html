@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <title>{% block title %}DineSync POS{% endblock %}</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="shortcut icon" href="/assets/media/logos/dine-sync-pos2.png" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" />
+    <link href="/assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
+    <link href="/assets/css/style.bundle.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body id="kt_app_body" data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true"
+    data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
+    data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class="app-default">
+
+    {% raw %}
+    <script>
+        var defaultThemeMode = "light"; var themeMode;
+        if (document.documentElement) {
+            if (document.documentElement.hasAttribute("data-bs-theme-mode")) { themeMode = document.documentElement.getAttribute("data-bs-theme-mode"); }
+            else if (localStorage.getItem("data-bs-theme") !== null) { themeMode = localStorage.getItem("data-bs-theme"); }
+            else { themeMode = defaultThemeMode; }
+            if (themeMode === "system") { themeMode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+            document.documentElement.setAttribute("data-bs-theme", themeMode);
+        }
+    </script>
+    {% endraw %}
+
+    <div class="page-loader flex-column">
+        <img alt="Logo" class="max-h-50px" src="/assets/media/logos/dine-sync-pos2.png" />
+        <div class="d-flex align-items-center mt-5">
+            <span class="spinner-border text-primary" role="status"></span>
+            <span class="text-muted fs-6 fw-semibold ms-5">Loading...</span>
+        </div>
+    </div>
+
+    <div class="d-flex flex-column flex-root app-root" id="kt_app_root">
+        <div class="app-page flex-column flex-column-fluid" id="kt_app_page">
+
+            <!--begin::Header-->
+            <div id="kt_app_header" class="app-header" data-kt-sticky="true" data-kt-sticky-name="app-header-sticky"
+                data-kt-sticky-offset="{default: '200px', lg: '300px'}">
+                <div class="app-container container-xxl d-flex align-items-stretch justify-content-between" id="kt_app_header_container">
+                    <div class="app-header-wrapper d-flex flex-grow-1 align-items-stretch justify-content-between" id="kt_app_header_wrapper">
+                        {% include "layout/menu.html" %}
+                        <div class="d-flex align-items-center">
+                            <div class="btn btn-icon btn-color-gray-600 btn-active-color-primary ms-n3 me-2 d-flex d-lg-none" id="kt_app_sidebar_toggle">
+                                <i class="ki-outline ki-abstract-14 fs-2"></i>
+                            </div>
+                            <a href="/admin/dashboard" class="d-flex d-lg-none">
+                                <img alt="Logo" src="/assets/media/logos/dine-sync-pos2.png" class="h-20px" />
+                            </a>
+                        </div>
+                        <div class="app-navbar flex-shrink-0">
+                            <div class="app-navbar-item d-lg-none ms-2 me-n4">
+                                <div class="btn btn-icon btn-color-gray-600 btn-active-color-primary" id="kt_app_header_menu_toggle">
+                                    <i class="ki-outline ki-text-align-left fs-2 fw-bold"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!--end::Header-->
+
+            <!--begin::Wrapper-->
+            <div class="app-wrapper flex-column flex-row-fluid" id="kt_app_wrapper">
+                {% include "layout/sidebar.html" %}
+                <div class="app-main flex-column flex-row-fluid" id="kt_app_main">
+                    <div class="d-flex flex-column flex-column-fluid">
+                        {% block content %}{% endblock %}
+                    </div>
+                    {% include "layout/footer.html" %}
+                </div>
+            </div>
+            <!--end::Wrapper-->
+
+        </div>
+    </div>
+
+    {% raw %}<script>var hostUrl = "/assets/";</script>{% endraw %}
+    <script src="/assets/plugins/global/plugins.bundle.js"></script>
+    <script src="/assets/js/scripts.bundle.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
