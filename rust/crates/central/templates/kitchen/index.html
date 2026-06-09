@@ -1,0 +1,100 @@
+{% extends "layout/app.html" %}
+{% block title %}Kitchen Display — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl d-flex flex-stack flex-wrap gap-3">
+        <h1 class="page-heading text-dark fw-bold fs-3 my-0"><i class="ki-outline ki-fire fs-2 me-2 text-danger"></i> Dapur (Antrian Pesanan)</h1>
+        <ul class="nav nav-pills gap-2">
+            <li class="nav-item"><a class="nav-link btn btn-sm btn-color-muted btn-active-light-danger fw-bold active" data-bs-toggle="tab" href="#tab_aktif">Sedang Dibuat <span class="badge badge-danger ms-2">{{ active_count }}</span></a></li>
+            <li class="nav-item"><a class="nav-link btn btn-sm btn-color-muted btn-active-light-success fw-bold" data-bs-toggle="tab" href="#tab_selesai">Sudah Selesai <span class="badge badge-success ms-2">{{ completed_count }}</span></a></li>
+        </ul>
+        <button type="button" class="btn btn-sm btn-light-primary fw-bold" onclick="location.reload()"><i class="ki-outline ki-arrows-circle fs-3"></i> Refresh</button>
+    </div>
+</div>
+
+<div id="kt_app_content" class="app-content flex-column-fluid">
+    <div class="app-container container-xxl">
+        {% if offline %}<div class="alert alert-warning p-4 mb-5">📴 <b>Mode OFFLINE</b> — menampilkan antrian dari perangkat (read-only). Tandai "selesai" saat server online.</div>{% endif %}
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="tab_aktif">
+                <div class="row g-5">
+                    {% for o in active %}
+                    <div class="col-md-4 col-lg-3">
+                        <div class="card shadow-sm border-0 h-100 {% if o.order_status == 'cooking' %}border border-primary border-2{% endif %}">
+                            <div class="card-header min-h-50px px-4 {% if o.order_status == 'cooking' %}bg-light-primary{% else %}bg-light-warning{% endif %}">
+                                <div class="card-title d-flex flex-column align-items-start m-0 py-2">
+                                    <span class="fw-bold fs-4 text-gray-800">{{ o.table_number }}</span>
+                                    <span class="fs-8 text-muted fw-semibold">{{ o.customer_name }} &bull; #{{ o.invoice_no }}</span>
+                                </div>
+                            </div>
+                            <div class="card-body p-4"><div class="d-flex flex-column gap-3">
+                                {% for it in o.items %}
+                                <div class="d-flex align-items-start justify-content-between border-bottom pb-2 mb-1">
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-bold text-gray-800 fs-6 {% if it.status == 'done' %}text-decoration-line-through text-muted{% endif %}">{{ it.qty }}x {{ it.name }}</span>
+                                        {% if it.notes %}<span class="fs-8 fw-bold text-danger fst-italic"><i class="ki-outline ki-message-text-2 fs-8"></i> {{ it.notes }}</span>{% endif %}
+                                    </div>
+                                    <div class="ms-2 text-end">
+                                        {% if it.status == 'pending' %}<span class="badge badge-light-warning fs-9">Antre</span>
+                                        {% elif it.status == 'cooking' %}<span class="badge badge-light-primary fs-9">Dimasak</span>
+                                        {% else %}<i class="ki-outline ki-check-circle text-success fs-3"></i>{% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div></div>
+                            {% if not offline %}
+                            <div class="card-footer p-3 bg-transparent border-top">
+                                {% if o.has_pending %}
+                                <button class="btn btn-sm btn-light-warning w-100 fw-bold" onclick="updateOrderStatus({{ o.id }}, 'cooking')"><i class="ki-outline ki-fire fs-5"></i> Masak Semua</button>
+                                {% else %}
+                                <button class="btn btn-sm btn-light-primary w-100 fw-bold" onclick="updateOrderStatus({{ o.id }}, 'done')"><i class="ki-outline ki-check fs-5"></i> Selesai &amp; Sajikan</button>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="col-12 text-center py-10"><i class="ki-outline ki-coffee fs-5x text-muted mb-3"></i><h3 class="text-gray-500 fw-semibold">Dapur sedang santai. Belum ada antrian.</h3></div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="tab_selesai">
+                <div class="row g-5">
+                    {% for o in completed %}
+                    <div class="col-md-4 col-lg-3"><div class="card shadow-sm border-0 h-100 opacity-75">
+                        <div class="card-header min-h-50px px-4 bg-light-success">
+                            <div class="card-title d-flex flex-column align-items-start m-0 py-2">
+                                <span class="fw-bold fs-4 text-gray-800">{{ o.table_number }}</span>
+                                <span class="fs-8 text-muted fw-semibold">{{ o.customer_name }} &bull; #{{ o.invoice_no }}</span>
+                            </div>
+                        </div>
+                        <div class="card-body p-4 text-center"><span class="badge badge-light-success fs-7"><i class="ki-outline ki-check-circle text-success fs-4 me-1"></i> {{ o.order_status }}</span></div>
+                    </div></div>
+                    {% else %}
+                    <div class="col-12 text-center py-10"><h3 class="text-gray-500 fw-semibold">Belum ada pesanan selesai.</h3></div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>var CSRF = "{{ csrf_token }}";</script>
+{% raw %}
+<script>
+    function updateOrderStatus(orderId, status) {
+        fetch('/admin/kitchen/order-status', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' }, body: new URLSearchParams({ _token: CSRF, order_id: orderId, status: status }) })
+            .then(r => r.json()).then(res => {
+                if (res.success) {
+                    if (res.is_finished) { Swal.fire({ icon: 'success', title: 'Pesanan Siap!', timer: 1200, showConfirmButton: false }).then(() => location.reload()); }
+                    else { location.reload(); }
+                } else { Swal.fire('Gagal', res.error || 'Error', 'error'); }
+            });
+    }
+</script>
+{% endraw %}
+{% endblock %}

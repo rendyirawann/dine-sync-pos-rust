@@ -241,14 +241,16 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [x] **Sync engine push** (`sync.rs`): order lokal → pusat, **idempoten via `ON CONFLICT (uuid)`** (re-sync tak dobel). Auto-sync 30 dtk + tombol "Sinkron Sekarang" + toggle simulasi offline (UI `/admin/sync`).
 - [x] **Acceptance INTI terverifikasi:** offline → order ke device (pusat tak berubah) → online → sync → pusat +1 → sync lagi → tetap (tanpa dobel). ✅
 - [x] **Kasir read-offline SELESAI 2026-06-10:** `pull_master` menarik meja/menu/kategori/setting ke SQLite (auto 30dtk + saat sync + boot). Saat offline, Kasir baca **peta meja + grid menu dari lokal** & bisa buat order; gerbang shift dilewati offline; banner "Mode OFFLINE". **Terverifikasi.**
-- [ ] **Sisa (scope Kasir+Kitchen):** **Kitchen display offline** (saat Kitchen dibangun Fase 4) + resolusi **konflik stok delta** (bareng stock deduction Fase 4). Dashboard/laporan/master/user TETAP online-only.
+- [x] **Kitchen display offline SELESAI 2026-06-10** (baca antrian order lokal read-only). → **Scope offline (Kasir+Kitchen) LENGKAP** untuk read+write order.
+- [ ] **Sisa kecil:** resolusi **konflik stok delta** (bareng stock deduction Fase 4) + sync status dapur offline (refinement). Dashboard/laporan/master/user TETAP online-only.
 - **Catatan:** KASIR kini local-first penuh (baca+tulis offline + sync). Tinggal Kitchen offline (ikut Fase 4) + konflik stok.
 
-### Fase 4 — Lebarkan Modul
-- [ ] Kitchen (+ real-time saat online).
-- [ ] Master data (pull): Menu, Category, Promo, Table, Supplier, Ingredient.
-- [ ] Queue, Frontend customer.
-- [ ] Finance/Stock (stok shared-mutable), Stock Opname (rekonsiliasi).
+### Fase 4 — Lebarkan Modul — 🚧 SEDANG BERJALAN
+- [x] **Kitchen display** (`kitchen.rs`, `kitchen/index.html`) — SELESAI 2026-06-10: kartu order aktif (item + tab Selesai), tombol "Masak Semua"→cooking & "Selesai"→served+item done. **Offline:** baca antrian order lokal (read-only). Terverifikasi (pending→cooking→served). *Ditunda:* stock deduction (butuh resep/batch), Reverb TTS (Fase 5), modal resep.
+- [ ] Master data CRUD: Category, Menu, Table, Promo, Supplier, Ingredient (+ pull ke lokal sudah ada utk menu/meja/kategori).
+- [ ] Queue, Frontend customer (scan QR — online-only).
+- [ ] Finance/Stock (stok shared-mutable + konflik delta), Stock Opname, Expense.
+- [ ] Report (Sales, Item Sales), User Management (User, Role), Log Activity.
 
 ### Fase 5 — Integrasi & Polish
 - [ ] Midtrans (server pusat, online-only).
@@ -280,7 +282,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [x] **Fase 1** — Auth + RBAC ✅ 2026-06-09
 - [x] **Fase 2** — Slice Kasir (online) ✅ 2026-06-10
 - [~] **Fase 3** — Local-first (CORE/write-path ✅ 2026-06-10; read-offline + pull + konflik stok = sisa)
-- [ ] **Fase 4** — Lebarkan modul
+- [~] **Fase 4** — Lebarkan modul (Kitchen ✅ 2026-06-10; master/inventory/laporan/user = sisa)
 - [ ] **Fase 5** — Integrasi & polish
 - [ ] **Fase 6** — Cutover
 
