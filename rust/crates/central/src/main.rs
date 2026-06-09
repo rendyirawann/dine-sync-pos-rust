@@ -1,4 +1,5 @@
 mod auth;
+mod kasir;
 mod rbac;
 mod ratelimit;
 mod shift;
@@ -46,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
     let tera = Tera::new(&format!("{manifest_dir}/templates/**/*.html"))?;
     let assets_dir = format!("{manifest_dir}/../../../public/assets");
+    let storage_dir = format!("{manifest_dir}/../../../storage/app/public");
 
     let state = AppState {
         pool,
@@ -65,6 +67,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/shifts", get(shift::shift_index))
         .route("/admin/shifts/open", post(shift::shift_open))
         .route("/admin/shifts/close/{id}", post(shift::shift_close))
+        .route("/admin/kasir", get(kasir::index))
+        .route("/admin/kasir/table-detail/{id}", get(kasir::table_detail))
+        .route("/admin/kasir/order/{table_id}", get(kasir::create_order))
+        .route("/admin/kasir/store", post(kasir::store_order))
+        .route("/admin/kasir/pay-existing", post(kasir::pay_existing))
+        .route("/admin/kasir/clear-table/{id}", post(kasir::clear_table))
+        .route("/admin/kasir/print/{id}", get(kasir::print_receipt))
         .route_layer(from_fn(auth::require_auth));
 
     let app = Router::new()
@@ -77,6 +86,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/logout", get(auth::logout).post(auth::logout))
         .merge(protected)
         .nest_service("/assets", ServeDir::new(assets_dir))
+        .nest_service("/storage", ServeDir::new(storage_dir))
         .with_state(state)
         .layer(session_layer);
 

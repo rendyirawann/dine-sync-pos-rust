@@ -1,0 +1,181 @@
+{% extends "layout/app.html" %}
+{% block title %}Pilih Menu — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+
+        <div class="d-flex align-items-center justify-content-between bg-white rounded p-5 mb-7 shadow-sm">
+            <div class="d-flex align-items-center">
+                <a href="/admin/kasir" class="btn btn-icon btn-light me-4"><i class="ki-outline ki-arrow-left fs-2"></i></a>
+                <div>
+                    <h2 class="mb-1">Pesanan Baru: <span class="text-primary">{{ table_number }}</span></h2>
+                    <span class="text-muted fw-bold">Pelanggan: {{ customer_name }}</span>
+                    <span class="badge badge-light-primary ms-2 text-uppercase">{{ order_type }}</span>
+                </div>
+            </div>
+            <input type="hidden" id="table_id" value="{{ table_id }}">
+            <input type="hidden" id="customer_name" value="{{ customer_name }}">
+            <input type="hidden" id="order_type" value="{{ order_type }}">
+        </div>
+
+        <div class="d-flex flex-column flex-xl-row">
+            <div class="d-flex flex-row-fluid me-xl-9 mb-10 mb-xl-0">
+                <div class="card card-flush bg-transparent border-0 w-100"><div class="card-body px-0">
+                    <ul class="nav nav-pills gap-3 mb-6" style="overflow-x:auto; flex-wrap:nowrap;">
+                        <li class="nav-item"><a class="nav-link btn btn-outline btn-active-light-primary fw-bold menu-filter active" data-filter="all" href="javascript:;"><i class="ki-outline ki-shop fs-2 me-1 text-primary"></i> Semua</a></li>
+                        {% for cat in categories %}
+                        <li class="nav-item"><a class="nav-link btn btn-outline btn-active-light-primary fw-bold menu-filter" data-filter="{{ cat.id }}" href="javascript:;">{{ cat.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                    <div class="d-flex flex-wrap gap-5" id="menu-grid">
+                        {% for m in menus %}
+                        <div class="card card-flush p-5 bg-hover-light cursor-pointer shadow-sm menu-card" style="width: 180px;"
+                            data-id="{{ m.id }}" data-name="{{ m.name }}" data-price="{{ m.price }}" data-img="{{ m.image }}" data-cat="{{ m.category_id }}">
+                            <div class="card-body text-center p-0">
+                                <img src="{{ m.image }}" class="rounded-3 mb-3 w-100px h-100px" style="object-fit:cover;" alt="Menu" />
+                                <div class="fw-bold text-gray-800 fs-5">{{ m.name }}</div>
+                                <div class="text-success fw-bold fs-4 mt-2">Rp {{ m.price_fmt }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-muted fst-italic">Belum ada menu tersedia.</div>
+                        {% endfor %}
+                    </div>
+                </div></div>
+            </div>
+
+            <div class="flex-row-auto w-xl-450px">
+                <div class="card card-flush bg-body shadow-sm">
+                    <div class="card-header pt-5"><h3 class="card-title fw-bold text-gray-800 fs-2qx">Bill Pesanan</h3></div>
+                    <div class="card-body pt-0">
+                        <div class="table-responsive mb-8" style="max-height:400px; overflow-y:auto;">
+                            <table class="table align-middle gs-0 gy-4 my-0"><tbody id="cart-items">
+                                <tr><td class="text-center text-muted fst-italic py-10">Keranjang masih kosong.</td></tr>
+                            </tbody></table>
+                        </div>
+                        <div class="d-flex flex-stack bg-light-primary rounded-3 p-6 mb-4"><div class="fs-6 fw-bold text-primary">Subtotal</div><div class="fs-5 fw-bold text-primary text-end" id="summary-subtotal">Rp 0</div></div>
+                        <div class="d-flex flex-stack bg-light-warning rounded-3 p-6 mb-7"><div class="fs-6 fw-bold text-warning">Pajak ({{ tax_rate }}%)</div><div class="fs-5 fw-bold text-warning text-end" id="summary-tax">Rp 0</div></div>
+                        <div class="d-flex flex-stack bg-success rounded-3 p-6 mb-7 shadow-sm"><div class="fs-6 fw-bold text-white"><span class="d-block fs-2qx lh-1 mt-2">Grand Total</span></div><div class="fs-6 fw-bold text-white text-end"><span class="d-block fs-2qx lh-1 mt-2" id="summary-total">Rp 0</span></div></div>
+                        <button type="button" id="btn-checkout" class="btn btn-primary fs-2 fw-bold w-100 py-4" disabled><i class="ki-outline ki-wallet fs-2 me-2"></i> Bayar &amp; Proses</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="Modal_Payment" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered mw-500px"><div class="modal-content">
+        <div class="modal-header"><h2 class="fw-bold">Pembayaran Pesanan</h2><div class="btn btn-icon btn-sm btn-active-icon-primary" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body mx-5 my-7">
+            <div class="text-center mb-5"><span class="fs-5 text-muted">Total Tagihan</span><div class="fs-1 fw-bold text-success" id="modal-grand-total">Rp 0</div></div>
+            <div class="fv-row mb-7"><label class="required fs-6 fw-semibold mb-2">Metode Pembayaran</label>
+                <select id="payment_method" class="form-select form-select-solid">
+                    <option value="pay_later">🍽️ Bayar Nanti (Pay Later)</option>
+                    <option value="cash">💵 Tunai (Cash)</option>
+                </select></div>
+            <div id="cash_input_area" class="fv-row mb-7" style="display:none;"><label class="required fs-6 fw-semibold mb-2">Nominal Uang Diterima (Rp)</label>
+                <input type="number" class="form-control form-control-solid" id="pay_amount" placeholder="0">
+                <div class="mt-3"><span class="fs-6 text-gray-700 fw-bold">Kembalian: <span id="change_amount" class="text-danger">Rp 0</span></span></div></div>
+            <div class="text-center pt-5 border-top mt-5"><button type="button" class="btn btn-light me-3" data-bs-dismiss="modal">Batal</button><button type="button" class="btn btn-primary" id="btn-process-payment">Proses Pembayaran</button></div>
+        </div>
+    </div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>var CSRF = "{{ csrf_token }}"; var TAX_RATE = {{ tax_rate }};</script>
+{% raw %}
+<script>
+    var cart = [], subtotalRaw = 0, taxRaw = 0, grandTotalRaw = 0;
+    const taxRateDecimal = TAX_RATE / 100;
+    const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+
+    function addToCart(id, name, price, img) {
+        let it = cart.find(i => i.id === id);
+        if (it) { it.qty += 1; it.subtotal = it.qty * it.price; }
+        else cart.push({ id, name, price, qty: 1, subtotal: price, note: '', img });
+        renderCart();
+    }
+    function updateQty(id, action) {
+        let i = cart.findIndex(x => x.id === id);
+        if (i < 0) return;
+        if (action === 'increase') cart[i].qty += 1;
+        else { if (cart[i].qty > 1) cart[i].qty -= 1; else { cart.splice(i, 1); renderCart(); return; } }
+        cart[i].subtotal = cart[i].qty * cart[i].price;
+        renderCart();
+    }
+    function renderCart() {
+        let html = ''; subtotalRaw = 0;
+        if (cart.length === 0) { html = '<tr><td class="text-center text-muted fst-italic py-10">Keranjang masih kosong.</td></tr>'; document.getElementById('btn-checkout').disabled = true; }
+        else {
+            document.getElementById('btn-checkout').disabled = false;
+            cart.forEach(item => {
+                subtotalRaw += parseInt(item.subtotal);
+                html += `<tr class="border-bottom border-gray-200"><td class="pt-4 pb-2">
+                    <div class="d-flex align-items-center mb-3"><img src="${item.img}" class="w-50px h-50px rounded-3 me-3" style="object-fit:cover;"/>
+                        <div class="d-flex flex-column flex-grow-1"><span class="fw-bold text-gray-800 fs-5">${item.name}</span><span class="fw-bold text-success fs-6">${formatRupiah(item.price)}</span></div></div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="d-flex align-items-center border border-gray-300 rounded p-1">
+                            <button type="button" class="btn btn-icon btn-sm btn-light w-25px h-25px" onclick="updateQty(${item.id},'decrease')"><i class="ki-outline ki-minus fs-5"></i></button>
+                            <input type="text" class="form-control border-0 text-center px-0 fs-5 fw-bold w-30px h-25px" readonly value="${item.qty}"/>
+                            <button type="button" class="btn btn-icon btn-sm btn-light w-25px h-25px" onclick="updateQty(${item.id},'increase')"><i class="ki-outline ki-plus fs-5"></i></button>
+                        </div><span class="fw-bolder text-gray-900 fs-4">${formatRupiah(item.subtotal)}</span></div>
+                    <input type="text" class="form-control form-control-sm form-control-solid fs-8 note-input" data-id="${item.id}" placeholder="Catatan..." value="${item.note}"></td></tr>`;
+            });
+        }
+        taxRaw = Math.round(subtotalRaw * taxRateDecimal);
+        grandTotalRaw = subtotalRaw + taxRaw;
+        document.getElementById('cart-items').innerHTML = html;
+        document.getElementById('summary-subtotal').textContent = formatRupiah(subtotalRaw);
+        document.getElementById('summary-tax').textContent = formatRupiah(taxRaw);
+        document.getElementById('summary-total').textContent = formatRupiah(grandTotalRaw);
+        document.querySelectorAll('.note-input').forEach(inp => inp.addEventListener('change', function () {
+            let idx = cart.findIndex(i => i.id === parseInt(this.dataset.id)); if (idx > -1) cart[idx].note = this.value;
+        }));
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.menu-card').forEach(c => c.addEventListener('click', function () {
+            addToCart(parseInt(this.dataset.id), this.dataset.name, parseInt(this.dataset.price), this.dataset.img);
+        }));
+        document.querySelectorAll('.menu-filter').forEach(b => b.addEventListener('click', function () {
+            const f = this.dataset.filter;
+            document.querySelectorAll('.menu-filter').forEach(x => x.classList.remove('active'));
+            this.classList.add('active');
+            document.querySelectorAll('.menu-card').forEach(c => { c.style.display = (f === 'all' || c.dataset.cat === f) ? '' : 'none'; });
+        }));
+        document.getElementById('btn-checkout').addEventListener('click', function () {
+            $('#Modal_Payment').modal('show');
+            document.getElementById('modal-grand-total').textContent = formatRupiah(grandTotalRaw);
+        });
+        document.getElementById('payment_method').addEventListener('change', function () {
+            document.getElementById('cash_input_area').style.display = (this.value === 'cash') ? '' : 'none';
+        });
+        document.getElementById('pay_amount').addEventListener('keyup', function () {
+            let c = (parseInt(this.value) || 0) - grandTotalRaw; document.getElementById('change_amount').textContent = formatRupiah(c < 0 ? 0 : c);
+        });
+        document.getElementById('btn-process-payment').addEventListener('click', processPayment);
+    });
+
+    function processPayment() {
+        const payMethod = document.getElementById('payment_method').value;
+        const payAmount = parseInt(document.getElementById('pay_amount').value) || 0;
+        if (payMethod === 'cash' && payAmount < grandTotalRaw) { Swal.fire('Uang Kurang!', 'Nominal tunai tidak cukup.', 'warning'); return; }
+        const btn = document.getElementById('btn-process-payment');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Memproses...';
+        fetch('/admin/kasir/store', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ _token: CSRF, table_id: parseInt(document.getElementById('table_id').value), customer_name: document.getElementById('customer_name').value, order_type: document.getElementById('order_type').value, payment_method: payMethod, cart: cart })
+        }).then(r => r.json()).then(res => {
+            $('#Modal_Payment').modal('hide');
+            if (!res.success) { Swal.fire('Gagal!', res.error || 'Kesalahan sistem.', 'error'); btn.disabled = false; btn.textContent = 'Proses Pembayaran'; return; }
+            const showPrint = (oid) => Swal.fire({ title: 'Pembayaran Lunas!', text: 'Cetak struk?', icon: 'success', showCancelButton: true, confirmButtonColor: '#009ef7', cancelButtonColor: '#f1416c', confirmButtonText: 'Cetak Struk', cancelButtonText: 'Lewati', allowOutsideClick: false })
+                .then(r => { if (r.isConfirmed) window.open('/admin/kasir/print/' + oid, '_blank', 'width=400,height=600'); window.location.href = '/admin/kasir'; });
+            if (res.type === 'pay_later') Swal.fire({ title: 'Berhasil!', text: res.message, icon: 'success', allowOutsideClick: false }).then(() => window.location.href = '/admin/kasir');
+            else if (res.type === 'cash') showPrint(res.order_id);
+        }).catch(() => { Swal.fire('Gagal!', 'Kesalahan jaringan.', 'error'); btn.disabled = false; btn.textContent = 'Proses Pembayaran'; });
+    }
+</script>
+{% endraw %}
+{% endblock %}

@@ -225,15 +225,15 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - **Kode:** `auth.rs`, `rbac.rs`, `ratelimit.rs`, `view.rs`, `templates/auth/login.html`, `templates/layout/{app,menu,sidebar,footer}.html`, `templates/dashboard.html`.
 - **Sisa (ditunda, non-blok):** session store persisten (kini in-memory → reset saat restart), CSRF untuk semua POST mulai Fase 2, parsing detail user-agent di activity log.
 
-### Fase 2 — Slice Kasir/Order *(online)* — 🚧 SEDANG BERJALAN
-- [x] **2.1 Shift** — buka/tutup shift (`shift.rs`, `kasir/shift.html`): modal kas awal, target+budget harian (saat shift pertama hari itu), hitung selisih kas saat tutup, riwayat 10 terakhir. CSRF + redirect flash. **Terverifikasi** (buka→DB, tutup→selisih 0 "Pas").
-- [x] **Sidebar widget hidup** — `view::base_context` kini async + query data nyata hari ini (target/budget/income/spent), dipakai semua halaman shell.
-- [ ] 2.2 Kasir index (peta meja + modal pilih/lihat).
-- [ ] 2.3 Order page (grid menu per kategori + keranjang).
-- [ ] 2.4 Simpan order (tunai) + cetak struk.
-- [ ] 2.5 Bayar susulan + kosongkan meja.
-- **Acceptance:** alur order tunai penuh end-to-end di Rust terhadap Postgres.
-- **Ditunda:** Midtrans (Fase 5), promo/diskon (opsional), potongan stok/HPP (Fase 4).
+### Fase 2 — Slice Kasir/Order *(online)* — ✅ SELESAI 2026-06-10
+- [x] **2.1 Shift** (`shift.rs`, `kasir/shift.html`): modal kas, target+budget harian, hitung selisih kas, riwayat. + **sidebar widget hidup** (`view::base_context` async).
+- [x] **2.2 Kasir index** (`kasir.rs::index`, `kasir/index.html`): peta meja (gate shift terbuka), warna status, modal detail via ajax (`table_detail`).
+- [x] **2.3 Order page** (`create_order`, `kasir/order.html`): grid menu + filter kategori + keranjang JS + modal bayar.
+- [x] **2.4 Simpan order + struk** (`store_order` transaksi, `print_receipt`): subtotal+pajak (dari settings, default 10%), order+details, meja occupied, cash→paid; struk thermal.
+- [x] **2.5** Bayar susulan (`pay_existing`), kosongkan meja (`clear_table` + guard item dapur).
+- [x] Serving `/storage` (gambar menu + avatar). `format_rupiah` pub.
+- **Acceptance:** ✅ **Terverifikasi end-to-end** — order tunai 25rb×2 → grand 55rb (pajak benar), paid, meja occupied, struk OK, **dashboard omzet Rp 55.000**; pay_later→unpaid→bayar-susulan→paid; clear ditolak saat item pending (400), sukses saat dapur selesai.
+- **Ditunda:** Midtrans (Fase 5), promo/diskon (opsional), potongan stok/HPP (Fase 4), status dapur real-time (Fase 4 kitchen).
 
 ### Fase 3 — Local-First untuk slice Kasir *(INTI)*
 - [ ] Tambah SQLite lokal + jalankan app di device.
@@ -277,7 +277,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 
 - [x] **Fase 0** — Fondasi ✅ 2026-06-09
 - [x] **Fase 1** — Auth + RBAC ✅ 2026-06-09
-- [ ] **Fase 2** — Slice Kasir (online)
+- [x] **Fase 2** — Slice Kasir (online) ✅ 2026-06-10
 - [ ] **Fase 3** — Local-first Kasir (sync engine)
 - [ ] **Fase 4** — Lebarkan modul
 - [ ] **Fase 5** — Integrasi & polish
@@ -288,6 +288,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - 2026-06-09 — Skala dikonfirmasi: **1 outlet, tanpa multi-tenant**. Scan QR customer **online-only** (tidak offline). Project di-push ke GitHub: `rendyirawann/dine-sync-pos-rust`. Mulai Fase 0.
 - 2026-06-09 — **Fase 0 SELESAI.** Toolchain: GNU + WinLibs MinGW-w64 (perlu `dlltool` utk `windows-sys`, `gcc` utk SQLite nanti). Stack pure-Rust terbukti jalan (Axum 0.8 + SQLx 0.9 postgres tanpa TLS + Tera 1.20). Server `rust/crates/central` render Metronic dari Postgres di :8088.
 - 2026-06-09 — **Fase 1 SELESAI menyeluruh.** Login+session, RBAC (CurrentUser extractor, Superadmin bypass, 50 izin termuat), hardening (CSRF, rate-limit lockout bertingkat, activity_log, last_login). Deps baru: bcrypt 0.19, tower-sessions 0.15, uuid v4. Catatan: session masih MemoryStore (reset saat restart) — ganti store persisten saat Fase 3.
+- 2026-06-10 — **Fase 2 SELESAI** (Kasir/Order). `kasir.rs` (index/table_detail/create_order/store_order/pay_existing/clear_table/print_receipt) + templates `kasir/{index,order,table_detail,print}.html`. Alur order tunai end-to-end terverifikasi; dashboard omzet live. Checkout pakai JSON (cart array) → axum `Json`. Penting: kolom int4 (qty/capacity/tax_rate) WAJIB di-cast `::bigint` saat SELECT (sqlx map int4→i32, bukan i64). `/storage` kini disajikan (gambar menu/avatar). Midtrans/promo/stok ditunda.
 - 2026-06-09 — **Admin shell Metronic di-port** (atas permintaan user agar tampilan tuntas di Fase 1): `layout/app.html` (base) + `layout/{menu,sidebar,footer}.html` + `view.rs` (`base_context`). Menu ber-permission, link → path Rust. Avatar pakai default Metronic (`/assets/media/avatars/blank.png`) karena `/storage` belum disajikan. Halaman Fase 2+ tinggal `{% extends "layout/app.html" %}`.
 - 2026-06-09 — **Login & Dashboard disamakan penuh dgn Laravel** (permintaan user). Login: restore Manual Book (tombol melayang + viewer PDF.js) + loader sukses (three-dot+progress) + countdown lockout 429. Dashboard analytics di-port (4 kartu omzet/HPP/expense/laba, grafik ApexCharts omzet-vs-target, top 5 menu, tabel menu habis, modal HPP) dgn query data nyata di Rust (`format_rupiah` + `generate_series` chart). Data 0/kosong krn belum ada transaksi, query siap. `{% block scripts %}` ditambah di `app.html`. **Ditunda:** HPP detail DataTable (ajax server-side) → Fase 2.
 
