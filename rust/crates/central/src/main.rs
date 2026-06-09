@@ -8,15 +8,15 @@ mod report;
 mod ratelimit;
 mod shift;
 mod sync;
+mod usermgmt;
 mod view;
 
 use std::sync::Arc;
 
 use axum::{
     extract::State,
-    http::StatusCode,
     middleware::from_fn,
-    response::{Html, IntoResponse, Redirect, Response},
+    response::{Html, Redirect},
     routing::{get, post},
     Router,
 };
@@ -101,7 +101,12 @@ async fn main() -> anyhow::Result<()> {
     // Rute yang wajib login.
     let protected = Router::new()
         .route("/admin/dashboard", get(dashboard))
-        .route("/admin/users", get(users_stub))
+        .route("/admin/users", get(usermgmt::users_index).post(usermgmt::user_store))
+        .route("/admin/users/{id}", post(usermgmt::user_update))
+        .route("/admin/users/{id}/delete", post(usermgmt::user_delete))
+        .route("/admin/roles", get(usermgmt::roles_index).post(usermgmt::role_store))
+        .route("/admin/roles/{id}", post(usermgmt::role_update))
+        .route("/admin/roles/{id}/delete", post(usermgmt::role_delete))
         .route("/admin/shifts", get(shift::shift_index))
         .route("/admin/shifts/open", post(shift::shift_open))
         .route("/admin/shifts/close/{id}", post(shift::shift_close))
@@ -280,18 +285,3 @@ async fn dashboard(user: CurrentUser, State(state): State<AppState>) -> Html<Str
     }
 }
 
-/// Contoh route yang dijaga permission (kelak jadi Manajemen User di Fase 4).
-async fn users_stub(user: CurrentUser) -> Response {
-    if !user.can("user.list") {
-        return (
-            StatusCode::FORBIDDEN,
-            Html("<h3>403 — Anda tidak punya izin <code>user.list</code></h3>".to_string()),
-        )
-            .into_response();
-    }
-    Html(format!(
-        "<h3>Manajemen User (stub)</h3><p>Halo <b>{}</b>, halaman ini dijaga permission <code>user.list</code>.</p>",
-        user.name
-    ))
-    .into_response()
-}

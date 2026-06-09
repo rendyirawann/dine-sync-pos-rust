@@ -1,0 +1,109 @@
+{% extends "layout/app.html" %}
+{% block title %}User Management — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h3 class="card-title fw-bold"><i class="ki-outline ki-profile-user fs-2 me-2"></i> Manajemen User</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add"><i class="ki-outline ki-plus fs-3"></i> Tambah User</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-row-dashed align-middle gy-3">
+                    <thead><tr class="fw-bold text-muted"><th>Nama / Email</th><th>Username</th><th>No. WA</th><th>Role</th><th class="text-center">Status</th><th>Login Terakhir</th><th class="text-end">Aksi</th></tr></thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="d-flex align-items-center">
+                                <div class="symbol symbol-circle symbol-40px overflow-hidden me-3"><div class="symbol-label fs-4 bg-light-primary text-primary text-uppercase">{{ r.name | truncate(length=1, end="") }}</div></div>
+                                <div class="d-flex flex-column"><span class="fw-bold text-gray-800">{{ r.name }}</span><span class="text-muted fs-8">{{ r.email }}</span></div>
+                            </td>
+                            <td><span class="badge badge-light">{{ r.username }}</span></td>
+                            <td class="text-muted">{{ r.no_wa }}</td>
+                            <td>{% for rl in r.roles | split(pat=", ") %}<span class="badge badge-light-info me-1">{{ rl }}</span>{% endfor %}</td>
+                            <td class="text-center">{% if r.is_active %}<span class="badge badge-light-success">Aktif</span>{% else %}<span class="badge badge-light-danger">Nonaktif</span>{% endif %}</td>
+                            <td class="text-muted fs-8">{{ r.last_login }}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-light-primary u-edit" data-id="{{ r.id }}" data-name="{{ r.name }}" data-username="{{ r.username }}" data-email="{{ r.email }}" data-wa="{{ r.no_wa }}" data-roles="{{ r.role_ids }}">Edit</button>
+                                <form method="POST" action="/admin/users/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus user {{ r.name }}?')"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-danger">Hapus</button></form>
+                            </td>
+                        </tr>
+                        {% else %}<tr><td colspan="7" class="text-center text-muted py-5">Belum ada user.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" id="uForm">
+        <div class="modal-header"><h2 class="fw-bold" id="modalTitle">Tambah User</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <input type="hidden" name="roles" id="uRoles">
+            <div class="row g-4">
+                <div class="col-md-6"><label class="form-label required fw-semibold">Nama Lengkap</label><input type="text" name="name" id="uName" class="form-control form-control-solid" required></div>
+                <div class="col-md-6"><label class="form-label required fw-semibold">Username</label><input type="text" name="username" id="uUsername" class="form-control form-control-solid" required></div>
+                <div class="col-md-6"><label class="form-label required fw-semibold">Email</label><input type="email" name="email" id="uEmail" class="form-control form-control-solid" required></div>
+                <div class="col-md-6"><label class="form-label fw-semibold">No. WhatsApp</label><input type="text" name="no_wa" id="uWa" class="form-control form-control-solid"></div>
+                <div class="col-md-12"><label class="form-label fw-semibold" id="pwLabel">Password</label><input type="password" name="password" id="uPass" class="form-control form-control-solid" autocomplete="new-password"><div class="form-text" id="pwHint">Minimal 8 karakter.</div></div>
+                <div class="col-md-12">
+                    <label class="form-label required fw-semibold">Role</label>
+                    <div class="d-flex flex-wrap gap-3">
+                        {% for ro in all_roles %}
+                        <label class="form-check form-check-custom form-check-solid">
+                            <input class="form-check-input u-role" type="checkbox" value="{{ ro.id }}">
+                            <span class="form-check-label fw-semibold">{{ ro.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+    const uForm = document.getElementById('uForm');
+    function setRoles(csv) {
+        const ids = (csv || '').split(',').map(s => s.trim());
+        document.querySelectorAll('.u-role').forEach(c => { c.checked = ids.includes(c.value); });
+    }
+    function openCreate() {
+        document.getElementById('modalTitle').textContent = 'Tambah User';
+        uForm.action = '/admin/users';
+        document.getElementById('uName').value = '';
+        document.getElementById('uUsername').value = ''; document.getElementById('uUsername').readOnly = false;
+        document.getElementById('uEmail').value = '';
+        document.getElementById('uWa').value = '';
+        document.getElementById('uPass').value = ''; document.getElementById('uPass').required = true;
+        document.getElementById('pwHint').textContent = 'Minimal 8 karakter.';
+        setRoles('');
+        $('#formModal').modal('show');
+    }
+    document.getElementById('btn-add').addEventListener('click', openCreate);
+    document.querySelectorAll('.u-edit').forEach(b => b.addEventListener('click', function () {
+        document.getElementById('modalTitle').textContent = 'Edit User';
+        uForm.action = '/admin/users/' + this.dataset.id;
+        document.getElementById('uName').value = this.dataset.name;
+        document.getElementById('uUsername').value = this.dataset.username; document.getElementById('uUsername').readOnly = true;
+        document.getElementById('uEmail').value = this.dataset.email;
+        document.getElementById('uWa').value = this.dataset.wa;
+        document.getElementById('uPass').value = ''; document.getElementById('uPass').required = false;
+        document.getElementById('pwHint').textContent = 'Kosongkan bila tidak ingin mengganti password.';
+        setRoles(this.dataset.roles);
+        $('#formModal').modal('show');
+    }));
+    uForm.addEventListener('submit', function () {
+        const ids = [...document.querySelectorAll('.u-role:checked')].map(c => c.value);
+        document.getElementById('uRoles').value = ids.join(',');
+    });
+</script>
+{% endraw %}
+{% endblock %}
