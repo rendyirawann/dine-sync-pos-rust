@@ -1,0 +1,27 @@
+{% extends "layout/app.html" %}
+{% block title %}Resep Menu — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <h1 class="fw-bold fs-2 mb-2"><i class="ki-outline ki-note-2 fs-1 me-2"></i> Resep Menu (BOM)</h1>
+        <p class="text-muted mb-6">Tentukan bahan baku tiap menu. Resep dipakai untuk memotong stok otomatis saat dapur memasak.</p>
+        <div class="card shadow-sm"><div class="card-body">
+            <table class="table table-row-dashed align-middle gy-3">
+                <thead><tr class="fw-bold text-muted"><th>Menu</th><th>Kategori</th><th class="text-center">Jumlah Bahan</th><th class="text-end">Aksi</th></tr></thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="fw-bold text-gray-800">{{ r.name }}</td>
+                        <td><span class="badge badge-light-info">{{ r.category }}</span></td>
+                        <td class="text-center">{% if r.count > 0 %}<span class="badge badge-light-success">{{ r.count }} bahan</span>{% else %}<span class="badge badge-light-warning">belum ada</span>{% endif %}</td>
+                        <td class="text-end"><a href="/admin/recipes/{{ r.id }}" class="btn btn-sm btn-light-primary">Atur Resep</a></td>
+                    </tr>
+                    {% else %}<tr><td colspan="4" class="text-center text-muted py-5">Belum ada menu.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

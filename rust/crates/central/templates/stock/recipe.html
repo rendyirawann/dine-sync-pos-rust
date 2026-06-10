@@ -1,0 +1,48 @@
+{% extends "layout/app.html" %}
+{% block title %}Resep {{ menu_name }} — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <div class="d-flex align-items-center mb-6">
+            <a href="/admin/recipes" class="btn btn-icon btn-light me-3"><i class="ki-outline ki-arrow-left fs-2"></i></a>
+            <h1 class="fw-bold fs-2 mb-0">Resep: {{ menu_name }}</h1>
+        </div>
+        <div class="row g-5">
+            <div class="col-lg-7">
+                <div class="card shadow-sm"><div class="card-body">
+                    <h3 class="fw-bold mb-4">Bahan dalam resep</h3>
+                    <table class="table table-row-dashed align-middle gy-3">
+                        <thead><tr class="fw-bold text-muted"><th>Bahan</th><th class="text-end">Takaran / Porsi</th><th class="text-end">Aksi</th></tr></thead>
+                        <tbody>
+                            {% for l in lines %}
+                            <tr>
+                                <td class="fw-semibold text-gray-800">{{ l.ingredient }}</td>
+                                <td class="text-end fw-bold">{{ l.qty }} {{ l.unit }}</td>
+                                <td class="text-end"><form method="POST" action="/admin/recipe-row/{{ l.id }}/delete" onsubmit="return confirm('Hapus bahan ini dari resep?')"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-icon btn-light-danger"><i class="ki-outline ki-trash fs-5"></i></button></form></td>
+                            </tr>
+                            {% else %}<tr><td colspan="3" class="text-center text-muted py-5">Belum ada bahan. Tambahkan di samping →</td></tr>{% endfor %}
+                        </tbody>
+                    </table>
+                </div></div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card shadow-sm"><div class="card-body">
+                    <h3 class="fw-bold mb-4">Tambah / Ubah Bahan</h3>
+                    <form method="POST" action="/admin/recipes/{{ menu_id }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token }}">
+                        <div class="mb-4"><label class="form-label required fw-semibold">Bahan</label>
+                            <select name="ingredient_id" class="form-select form-select-solid" required>
+                                <option value="">— pilih bahan —</option>
+                                {% for i in ingredients %}<option value="{{ i.id }}">{{ i.name }}</option>{% endfor %}
+                            </select></div>
+                        <div class="mb-4"><label class="form-label required fw-semibold">Takaran per Porsi</label><input type="number" step="0.01" name="quantity" class="form-control form-control-solid" required placeholder="mis. 150"><div class="form-text">Sesuai satuan bahan (gram/ml/pcs). Menambah bahan yang sama akan menimpa takaran lama.</div></div>
+                        <button type="submit" class="btn btn-primary w-100">Simpan Bahan</button>
+                    </form>
+                </div></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

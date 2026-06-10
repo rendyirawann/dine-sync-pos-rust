@@ -1,0 +1,74 @@
+{% extends "layout/app.html" %}
+{% block title %}Stock Opname — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <h1 class="fw-bold fs-2 mb-2"><i class="ki-outline ki-check-square fs-1 me-2"></i> Stock Opname</h1>
+        <p class="text-muted mb-6">Isi jumlah fisik hasil hitung. Selisih akan menyesuaikan stok sistem (kurang → potong FEFO, lebih → tambah ke batch terbaru).</p>
+
+        <div class="card shadow-sm mb-6">
+            <div class="card-header"><h3 class="card-title fw-bold">Form Opname Baru</h3></div>
+            <div class="card-body">
+                <form method="POST" action="/admin/stock-opname" id="opnameForm">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="adjustments" id="adjustments">
+                    <div class="mb-4"><label class="form-label fw-semibold">Catatan</label><input type="text" name="notes" class="form-control form-control-solid" placeholder="mis. Opname akhir bulan"></div>
+                    <table class="table table-row-dashed align-middle gy-2">
+                        <thead><tr class="fw-bold text-muted"><th>Bahan</th><th class="text-end">Stok Sistem</th><th style="width:160px">Stok Fisik</th><th class="text-end">Selisih</th></tr></thead>
+                        <tbody>
+                            {% for r in ings %}
+                            <tr>
+                                <td class="fw-semibold text-gray-800">{{ r.name }} <span class="text-muted fs-8">({{ r.unit }})</span></td>
+                                <td class="text-end fw-bold sys" data-sys="{{ r.system }}">{{ r.system }}</td>
+                                <td><input type="number" step="0.01" class="form-control form-control-sm form-control-solid phys" data-id="{{ r.id }}" placeholder="{{ r.system }}"></td>
+                                <td class="text-end fw-bold diff">—</td>
+                            </tr>
+                            {% else %}<tr><td colspan="4" class="text-center text-muted py-5">Belum ada bahan.</td></tr>{% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="text-end mt-4"><button type="submit" class="btn btn-primary" id="saveBtn"><i class="ki-outline ki-check fs-3"></i> Simpan Hasil Opname</button></div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header"><h3 class="card-title fw-bold">Riwayat Opname</h3></div>
+            <div class="card-body">
+                <table class="table table-row-dashed align-middle gy-2">
+                    <thead><tr class="fw-bold text-muted"><th>Tanggal</th><th>Petugas</th><th>Catatan</th><th class="text-center">Item</th></tr></thead>
+                    <tbody>
+                        {% for h in history %}
+                        <tr><td class="fw-semibold">{{ h.date }}</td><td>{{ h.user }}</td><td class="text-muted">{{ h.notes }}</td><td class="text-center"><span class="badge badge-light-primary">{{ h.items }}</span></td></tr>
+                        {% else %}<tr><td colspan="4" class="text-center text-muted py-5">Belum ada riwayat opname.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+    function recompute(row){
+        const sys = parseFloat(row.querySelector('.sys').dataset.sys) || 0;
+        const inp = row.querySelector('.phys');
+        const cell = row.querySelector('.diff');
+        if(inp.value === ''){ cell.textContent='—'; cell.className='text-end fw-bold diff text-muted'; return; }
+        const diff = (parseFloat(inp.value)||0) - sys;
+        cell.textContent = (diff>0?'+':'') + diff;
+        cell.className = 'text-end fw-bold diff ' + (diff<0?'text-danger':(diff>0?'text-success':'text-muted'));
+    }
+    document.querySelectorAll('.phys').forEach(i => i.addEventListener('input', () => recompute(i.closest('tr'))));
+    document.getElementById('opnameForm').addEventListener('submit', function(){
+        const adj = [];
+        document.querySelectorAll('.phys').forEach(i => {
+            if(i.value !== '') adj.push({ id: parseInt(i.dataset.id), physical: parseFloat(i.value) });
+        });
+        document.getElementById('adjustments').value = JSON.stringify(adj);
+    });
+</script>
+{% endraw %}
+{% endblock %}

@@ -175,23 +175,41 @@ async fn load_active_local(state: &AppState) -> Vec<KOrder> {
 }
 
 /// POST /admin/kitchen/order-status — tandai seluruh item order: cooking / done (online).
-pub async fn order_status(State(state): State<AppState>, session: Session, Form(form): Form<OrderStatusForm>) -> Response {
+pub async fn order_status(user: CurrentUser, State(state): State<AppState>, session: Session, Form(form): Form<OrderStatusForm>) -> Response {
+    if !user.can("view_kitchen") {
+        return Json(json!({"success": false, "error": "Tidak punya izin dapur"})).into_response();
+    }
     if !auth::verify_csrf(&session, &form.csrf).await {
         return Json(json!({"success": false, "error": "Sesi kedaluwarsa"})).into_response();
     }
     if !crate::sync::central_online(&state).await {
         return Json(json!({"success": false, "error": "Server offline — selesaikan saat online."})).into_response();
     }
-    let pool = &state.pool;
+    // Hanya 'cooking' / 'done' yang sah — nilai lain ditolak (cegah transisi served+deduksi tak sengaja).
+    if form.status != "cooking" && form.status != "done" {
+        return Json(json!({"success": false, "error": "Status tidak valid"})).into_response();
+    }
     let is_finished = form.status == "done";
-    let res = if form.status == "cooking" {
-        let _ = sqlx::query("UPDATE order_details SET status='cooking', updated_at=now() WHERE order_id=$1 AND status='pending'").bind(form.order_id).execute(pool).await;
-        sqlx::query("UPDATE orders SET order_status='cooking', updated_at=now() WHERE id=$1").bind(form.order_id).execute(pool).await
-    } else {
-        let _ = sqlx::query("UPDATE order_details SET status='done', updated_at=now() WHERE order_id=$1").bind(form.order_id).execute(pool).await;
-        sqlx::query("UPDATE orders SET order_status='served', updated_at=now() WHERE id=$1").bind(form.order_id).execute(pool).await
+    // Transaksi: update status + potong stok (FEFO, idempoten) sekaligus.
+    let mut tx = match state.pool.begin().await {
+        Ok(t) => t,
+        Err(e) => return Json(json!({"success": false, "error": e.to_string()})).into_response(),
     };
-    match res {
+    let upd = if form.status == "cooking" {
+        let _ = sqlx::query("UPDATE order_details SET status='cooking', updated_at=now() WHERE order_id=$1 AND status='pending'").bind(form.order_id).execute(&mut *tx).await;
+        sqlx::query("UPDATE orders SET order_status='cooking', updated_at=now() WHERE id=$1").bind(form.order_id).execute(&mut *tx).await
+    } else {
+        let _ = sqlx::query("UPDATE order_details SET status='done', updated_at=now() WHERE order_id=$1").bind(form.order_id).execute(&mut *tx).await;
+        sqlx::query("UPDATE orders SET order_status='served', updated_at=now() WHERE id=$1").bind(form.order_id).execute(&mut *tx).await
+    };
+    if let Err(e) = upd {
+        return Json(json!({"success": false, "error": e.to_string()})).into_response();
+    }
+    // Potong stok bahan baku (FEFO) untuk item yang belum dipotong.
+    if let Err(e) = crate::stock::deduct_order_stock(&mut tx, form.order_id).await {
+        return Json(json!({"success": false, "error": format!("Gagal potong stok: {e}")})).into_response();
+    }
+    match tx.commit().await {
         Ok(_) => Json(json!({"success": true, "is_finished": is_finished})).into_response(),
         Err(e) => Json(json!({"success": false, "error": e.to_string()})).into_response(),
     }

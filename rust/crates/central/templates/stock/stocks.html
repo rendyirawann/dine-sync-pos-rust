@@ -1,0 +1,90 @@
+{% extends "layout/app.html" %}
+{% block title %}Stok Masuk — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+
+        <div class="row g-5">
+            <div class="col-lg-5">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><h3 class="card-title fw-bold"><i class="ki-outline ki-chart-simple-2 fs-2 me-2"></i> Stok Saat Ini</h3></div>
+                    <div class="card-body">
+                        <table class="table table-row-dashed align-middle gy-2">
+                            <thead><tr class="fw-bold text-muted fs-8"><th>Bahan</th><th class="text-end">Stok</th><th class="text-end">Min</th></tr></thead>
+                            <tbody>
+                                {% for r in current %}
+                                <tr>
+                                    <td class="fw-semibold text-gray-800">{{ r.name }}{% if r.low %}<span class="badge badge-light-danger ms-2">menipis</span>{% endif %}</td>
+                                    <td class="text-end fw-bold {% if r.low %}text-danger{% else %}text-success{% endif %}">{{ r.stock }} {{ r.unit }}</td>
+                                    <td class="text-end text-muted fs-8">{{ r.min }}</td>
+                                </tr>
+                                {% else %}<tr><td colspan="3" class="text-center text-muted py-5">Belum ada bahan. Tambahkan di Master → Bahan.</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-7">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                        <h3 class="card-title fw-bold"><i class="ki-outline ki-entrance-left fs-2 me-2"></i> Riwayat Batch Masuk</h3>
+                        <button class="btn btn-primary btn-sm" id="btn-add"><i class="ki-outline ki-plus fs-3"></i> Stok Masuk</button>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-row-dashed align-middle gy-2">
+                            <thead><tr class="fw-bold text-muted fs-8"><th>Bahan</th><th>Supplier</th><th class="text-end">Sisa / Awal</th><th class="text-end">Total Beli</th><th>Masuk</th><th>Exp</th><th></th></tr></thead>
+                            <tbody>
+                                {% for b in batches %}
+                                <tr>
+                                    <td class="fw-semibold text-gray-800">{{ b.ingredient }}</td>
+                                    <td class="text-muted fs-8">{{ b.supplier }}</td>
+                                    <td class="text-end">{{ b.remaining }} / {{ b.initial }} {{ b.unit }}</td>
+                                    <td class="text-end fw-bold text-success">Rp {{ b.buy_total }}</td>
+                                    <td class="text-muted fs-8">{{ b.entry_date }}</td>
+                                    <td class="text-muted fs-8">{{ b.expiry_date }}</td>
+                                    <td class="text-end"><form method="POST" action="/admin/stocks/{{ b.id }}/delete" onsubmit="return confirm('Hapus batch ini? Stok akan berkurang.')"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-icon btn-light-danger"><i class="ki-outline ki-trash fs-5"></i></button></form></td>
+                                </tr>
+                                {% else %}<tr><td colspan="7" class="text-center text-muted py-5">Belum ada stok masuk.</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" action="/admin/stocks">
+        <div class="modal-header"><h2 class="fw-bold">Catat Stok Masuk</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <div class="row g-4">
+                <div class="col-md-12"><label class="form-label required fw-semibold">Bahan</label>
+                    <select name="ingredient_id" class="form-select form-select-solid" required>
+                        <option value="">— pilih bahan —</option>
+                        {% for i in ingredients %}<option value="{{ i.id }}">{{ i.name }}</option>{% endfor %}
+                    </select></div>
+                <div class="col-md-6"><label class="form-label required fw-semibold">Jumlah Masuk</label><input type="number" step="0.01" name="initial_quantity" class="form-control form-control-solid" required placeholder="mis. 5000"></div>
+                <div class="col-md-6"><label class="form-label required fw-semibold">Total Harga Belanja (Rp)</label><input type="number" name="buy_price_total" class="form-control form-control-solid" min="0" required placeholder="total seluruh jumlah"><div class="form-text">Harga satuan dihitung otomatis (total ÷ jumlah).</div></div>
+                <div class="col-md-12"><label class="form-label fw-semibold">Supplier</label>
+                    <select name="supplier_id" class="form-select form-select-solid">
+                        <option value="">— tanpa supplier —</option>
+                        {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+                    </select></div>
+                <div class="col-md-6"><label class="form-label fw-semibold">Tanggal Masuk</label><input type="date" name="entry_date" class="form-control form-control-solid"></div>
+                <div class="col-md-6"><label class="form-label fw-semibold">Kadaluarsa (opsional)</label><input type="date" name="expiry_date" class="form-control form-control-solid"></div>
+            </div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+    document.getElementById('btn-add').addEventListener('click', () => { $('#formModal').modal('show'); });
+</script>
+{% endraw %}
+{% endblock %}

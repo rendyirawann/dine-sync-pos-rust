@@ -10,6 +10,7 @@ mod rbac;
 mod report;
 mod ratelimit;
 mod shift;
+mod stock;
 mod sync;
 mod usermgmt;
 mod view;
@@ -146,6 +147,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/expenses/{id}/delete", post(finance::expense_delete))
         .route("/admin/reports/sales", get(report::sales_report))
         .route("/admin/reports/items", get(report::item_sales_report))
+        .route("/admin/stocks", get(stock::stocks_index).post(stock::stock_store))
+        .route("/admin/stocks/{id}/delete", post(stock::stock_delete))
+        .route("/admin/recipes", get(stock::recipes_index))
+        .route("/admin/recipes/{menu_id}", get(stock::recipe_edit).post(stock::recipe_add))
+        .route("/admin/recipe-row/{id}/delete", post(stock::recipe_row_delete))
+        .route("/admin/stock-opname", get(stock::opname_index).post(stock::opname_store))
+        .route("/admin/stock-movements", get(stock::ledger_index))
         .route("/admin/queues", get(queue::admin_index))
         .route("/admin/queues/{id}/status", post(queue::admin_status))
         .route("/admin/tables/{id}/print-qr", get(customer::print_qr))

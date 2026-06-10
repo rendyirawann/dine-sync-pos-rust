@@ -1,0 +1,26 @@
+{% extends "layout/app.html" %}
+{% block title %}Kartu Stok — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        <h1 class="fw-bold fs-2 mb-6"><i class="ki-outline ki-book-open fs-1 me-2"></i> Kartu Stok (Mutasi Bahan)</h1>
+        <div class="card shadow-sm"><div class="card-body">
+            <table class="table table-row-dashed align-middle gy-2">
+                <thead><tr class="fw-bold text-muted"><th>Waktu</th><th>Bahan</th><th class="text-center">Tipe</th><th class="text-end">Jumlah</th><th>Alasan</th><th>Referensi</th></tr></thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="text-muted fs-8">{{ r.time }}</td>
+                        <td class="fw-semibold text-gray-800">{{ r.ingredient }}</td>
+                        <td class="text-center">{% if r.mtype == 'in' %}<span class="badge badge-light-success">Masuk</span>{% else %}<span class="badge badge-light-danger">Keluar</span>{% endif %}</td>
+                        <td class="text-end fw-bold">{{ r.qty }}</td>
+                        <td><span class="badge badge-light text-lowercase">{{ r.reason }}</span></td>
+                        <td class="text-muted fs-8">{{ r.reference }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="6" class="text-center text-muted py-5">Belum ada mutasi stok.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
