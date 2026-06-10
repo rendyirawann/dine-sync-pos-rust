@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>Mulai Pesan — DineSync</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" />
+    <link href="/assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
+    <link href="/assets/css/style.bundle.css" rel="stylesheet" type="text/css" />
+    <style>body{background:linear-gradient(135deg,#1b1b29,#2b2b40);min-height:100vh}</style>
+</head>
+<body class="d-flex flex-column align-items-center justify-content-center">
+    <div class="card shadow-lg w-100 mw-450px m-5"><div class="card-body p-10">
+        <h1 class="text-center fw-bold mb-1">Meja {{ table_number }}</h1>
+        <p class="text-center text-muted mb-8">Pesan langsung dari meja Anda</p>
+        {% if occupied %}<div class="alert alert-warning p-3 text-center">Meja ini sedang dipakai. Anda tetap bisa menambah pesanan.</div>{% endif %}
+        <form method="POST" action="/scan/{{ uuid }}">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <div class="mb-8"><label class="form-label fw-semibold">Nama Anda</label><input type="text" name="customer_name" class="form-control form-control-lg form-control-solid" required placeholder="Masukkan nama"></div>
+            <button type="submit" class="btn btn-primary btn-lg w-100">Lihat Menu</button>
+        </form>
+    </div></div>
+</body>
+</html>

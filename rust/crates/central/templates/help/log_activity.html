@@ -1,0 +1,28 @@
+{% extends "layout/app.html" %}
+{% block title %}Log Activity — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        <h1 class="fw-bold fs-2 mb-6"><i class="ki-outline ki-time fs-1 me-2"></i> Log Aktivitas
+            {% if not is_superadmin %}<span class="badge badge-light-warning ms-2">aktivitas Anda</span>{% endif %}
+        </h1>
+        <div class="card shadow-sm"><div class="card-body">
+            <table class="table table-row-dashed align-middle gy-3">
+                <thead><tr class="fw-bold text-muted"><th>Waktu</th><th>Log</th><th>Deskripsi</th><th>Oleh</th><th>IP</th><th>Perangkat</th></tr></thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="text-muted fs-8">{{ r.time }}</td>
+                        <td><span class="badge badge-light-primary text-uppercase">{{ r.log_name }}</span></td>
+                        <td class="fw-semibold text-gray-800">{{ r.description }}</td>
+                        <td>{{ r.causer }}</td>
+                        <td><span class="badge badge-light">{{ r.ip }}</span></td>
+                        <td class="text-muted fs-8" style="max-width:280px" title="{{ r.agent }}">{{ r.agent | truncate(length=60) }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="6" class="text-center text-muted py-5">Belum ada aktivitas tercatat.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

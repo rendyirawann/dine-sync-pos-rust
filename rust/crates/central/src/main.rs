@@ -1,8 +1,11 @@
 mod auth;
+mod customer;
 mod finance;
 mod kasir;
 mod kitchen;
+mod logactivity;
 mod master;
+mod queue;
 mod rbac;
 mod report;
 mod ratelimit;
@@ -143,6 +146,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/expenses/{id}/delete", post(finance::expense_delete))
         .route("/admin/reports/sales", get(report::sales_report))
         .route("/admin/reports/items", get(report::item_sales_report))
+        .route("/admin/queues", get(queue::admin_index))
+        .route("/admin/queues/{id}/status", post(queue::admin_status))
+        .route("/admin/tables/{id}/print-qr", get(customer::print_qr))
+        .route("/admin/log-activity", get(logactivity::index))
         .route("/admin/sync", get(sync::sync_page))
         .route("/admin/sync/now", post(sync::sync_run))
         .route("/admin/sync/toggle", post(sync::toggle_offline))
@@ -156,6 +163,15 @@ async fn main() -> anyhow::Result<()> {
             get(auth::login_page).post(auth::login_submit),
         )
         .route("/admin/logout", get(auth::logout).post(auth::logout))
+        // Rute publik pelanggan (online-only): scan QR meja → menu → checkout.
+        .route("/scan/{uuid}", get(customer::scan_page).post(customer::scan_start))
+        .route("/menu/{uuid}", get(customer::menu_page))
+        .route("/menu/{uuid}/checkout", post(customer::checkout))
+        .route("/order-success/{uuid}", get(customer::success_page))
+        // Antrian publik: kiosk ambil nomor + layar TV.
+        .route("/kiosk", get(queue::kiosk_page).post(queue::kiosk_take))
+        .route("/kiosk/take", post(queue::kiosk_take))
+        .route("/display", get(queue::display_page))
         .merge(protected)
         .nest_service("/assets", ServeDir::new(assets_dir))
         .nest_service("/storage", ServeDir::new(storage_dir))

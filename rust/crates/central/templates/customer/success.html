@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>Pesanan Diterima — DineSync</title>
+    <link href="/assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
+    <link href="/assets/css/style.bundle.css" rel="stylesheet" type="text/css" />
+    <style>body{background:linear-gradient(135deg,#1b1b29,#2b2b40);min-height:100vh}</style>
+</head>
+<body class="d-flex flex-column align-items-center justify-content-center">
+    <div class="card shadow-lg w-100 mw-450px m-5"><div class="card-body text-center p-10">
+        <div class="mb-5"><i class="ki-outline ki-check-circle text-success" style="font-size:6rem"></i></div>
+        <h1 class="fw-bold mb-2">Pesanan Diterima! 🎉</h1>
+        <p class="text-muted mb-2">Terima kasih, <b>{{ customer_name }}</b>.</p>
+        <p class="text-muted mb-8">Pesanan untuk <b>Meja {{ table_number }}</b> sedang disiapkan dapur. Pembayaran dilakukan di kasir.</p>
+        <a href="/menu/{{ uuid }}" class="btn btn-light-primary w-100">Pesan Lagi</a>
+    </div></div>
+</body>
+</html>

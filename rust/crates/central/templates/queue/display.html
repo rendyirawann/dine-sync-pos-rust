@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="10">
+    <title>Antrian — Layar TV</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" />
+    <link href="/assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
+    <link href="/assets/css/style.bundle.css" rel="stylesheet" type="text/css" />
+    <style>body{background:#0d0d1a;color:#fff;min-height:100vh;overflow:hidden}</style>
+</head>
+<body>
+    <div class="row g-0 h-100" style="min-height:100vh">
+        <div class="col-7 d-flex flex-column align-items-center justify-content-center border-end border-gray-800">
+            <span class="text-gray-500 fw-semibold fs-2 text-uppercase mb-4">Sedang Dipanggil</span>
+            <div class="fw-bolder text-primary" style="font-size:18rem;line-height:1">{{ current }}</div>
+        </div>
+        <div class="col-5 p-10">
+            <h2 class="text-gray-400 fw-bold mb-6 text-uppercase">Menunggu</h2>
+            <div class="d-flex flex-wrap gap-4">
+                {% for w in waiting %}
+                <span class="badge badge-light-warning fs-1 fw-bold px-5 py-3">{{ w.queue_number }}</span>
+                {% else %}<span class="text-gray-600 fs-3">Tidak ada antrian.</span>{% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

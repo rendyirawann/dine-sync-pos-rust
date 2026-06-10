@@ -20,6 +20,7 @@
                             <td class="text-center">{{ r.capacity }} orang</td>
                             <td class="text-center">{% if r.status == 'available' %}<span class="badge badge-light-success">Kosong</span>{% else %}<span class="badge badge-light-danger">Terisi</span>{% endif %}</td>
                             <td class="text-end">
+                                <a href="/admin/tables/{{ r.id }}/print-qr" target="_blank" class="btn btn-sm btn-light-info"><i class="ki-outline ki-scan-barcode fs-4"></i> QR</a>
                                 <button class="btn btn-sm btn-light-primary tbl-edit" data-id="{{ r.id }}" data-num="{{ r.table_number }}" data-cap="{{ r.capacity }}" data-status="{{ r.status }}">Edit</button>
                                 <form method="POST" action="/admin/tables/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus meja ini?')">
                                     <input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-danger">Hapus</button>

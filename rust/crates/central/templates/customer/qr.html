@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <title>QR Meja {{ table_number }} — DineSync</title>
+    <link href="/assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
+    <link href="/assets/css/style.bundle.css" rel="stylesheet" type="text/css" />
+    <style>@media print{.no-print{display:none}} body{background:#fff}</style>
+</head>
+<body class="d-flex flex-column align-items-center justify-content-center py-10">
+    <div class="card shadow-sm mw-400px text-center"><div class="card-body p-10">
+        <h1 class="fw-bolder mb-1">Meja {{ table_number }}</h1>
+        <p class="text-muted mb-5">Pindai untuk memesan</p>
+        <div class="d-flex justify-content-center mb-5">{{ qr_svg | safe }}</div>
+        <div class="text-muted fs-8 mb-8" style="word-break:break-all">{{ url }}</div>
+        <button onclick="window.print()" class="btn btn-primary w-100 no-print">Cetak</button>
+    </div></div>
+</body>
+</html>

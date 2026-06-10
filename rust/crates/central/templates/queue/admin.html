@@ -1,0 +1,45 @@
+{% extends "layout/app.html" %}
+{% block title %}Antrian — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if called %}<div class="alert alert-info p-4 mb-5">Memanggil antrian <b>{{ called }}</b>.</div>{% endif %}
+        <div class="d-flex flex-wrap align-items-center justify-content-between mb-5">
+            <h1 class="fw-bold fs-2 mb-0"><i class="ki-outline ki-people fs-1 me-2"></i> Antrian Hari Ini <span class="badge badge-light-warning ms-2">{{ waiting_count }} menunggu</span></h1>
+            <div>
+                <a href="/kiosk" target="_blank" class="btn btn-light-primary btn-sm"><i class="ki-outline ki-printer fs-4"></i> Kiosk Ambil Nomor</a>
+                <a href="/display" target="_blank" class="btn btn-light-success btn-sm"><i class="ki-outline ki-screen fs-4"></i> Layar TV</a>
+            </div>
+        </div>
+
+        <div class="card shadow-sm"><div class="card-body">
+            <table class="table table-row-dashed align-middle gy-3">
+                <thead><tr class="fw-bold text-muted"><th>Waktu</th><th>Nomor</th><th>Nama</th><th class="text-center">Pax</th><th class="text-center">Status</th><th class="text-end">Aksi</th></tr></thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="text-muted">{{ r.time }}</td>
+                        <td><span class="badge badge-primary fs-5 fw-bold">{{ r.queue_number }}</span></td>
+                        <td class="fw-bold text-gray-800">{{ r.customer_name }}</td>
+                        <td class="text-center">{{ r.pax }}</td>
+                        <td class="text-center">
+                            {% if r.status == 'waiting' %}<span class="badge badge-light-warning">Menunggu</span>
+                            {% elif r.status == 'called' %}<span class="badge badge-light-info">Dipanggil</span>
+                            {% elif r.status == 'seated' %}<span class="badge badge-light-success">Duduk</span>
+                            {% else %}<span class="badge badge-light-danger">Batal</span>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if r.status == 'waiting' or r.status == 'called' %}
+                            <form method="POST" action="/admin/queues/{{ r.id }}/status" class="d-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="status" value="called"><button class="btn btn-sm btn-light-info">Panggil</button></form>
+                            <form method="POST" action="/admin/queues/{{ r.id }}/status" class="d-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="status" value="seated"><button class="btn btn-sm btn-light-success">Duduk</button></form>
+                            <form method="POST" action="/admin/queues/{{ r.id }}/status" class="d-inline" onsubmit="return confirm('Batalkan antrian ini?')"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="status" value="cancelled"><button class="btn btn-sm btn-light-danger">Batal</button></form>
+                            {% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% else %}<tr><td colspan="6" class="text-center text-muted py-5">Belum ada antrian hari ini.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

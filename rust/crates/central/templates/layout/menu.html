@@ -17,6 +17,16 @@
             <a href="/admin/kasir" class="menu-link px-4 {% if active == 'kasir' %}active {% endif %}"><span class="menu-title">Kasir</span></a>
         </div>
         {% endif %}
+        {% if can_kitchen %}
+        <div class="menu-item menu-here-bg me-0 me-lg-2 {% if active == 'kitchen' %}here show {% endif %}">
+            <a href="/admin/kitchen" class="menu-link px-4 {% if active == 'kitchen' %}active {% endif %}"><span class="menu-title">Dapur</span></a>
+        </div>
+        {% endif %}
+        {% if can_queue %}
+        <div class="menu-item menu-here-bg me-0 me-lg-2 {% if active == 'queue' %}here show {% endif %}">
+            <a href="/admin/queues" class="menu-link px-4 {% if active == 'queue' %}active {% endif %}"><span class="menu-title">Antrian</span></a>
+        </div>
+        {% endif %}
         <div class="menu-item menu-here-bg me-0 me-lg-2 {% if active == 'sync' %}here show {% endif %}">
             <a href="/admin/sync" class="menu-link px-4 {% if active == 'sync' %}active {% endif %}"><span class="menu-title">Sinkron</span></a>
         </div>
