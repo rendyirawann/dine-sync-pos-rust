@@ -8,6 +8,7 @@ mod logactivity;
 mod master;
 mod queue;
 mod rbac;
+mod realtime;
 mod report;
 mod ratelimit;
 mod shift;
@@ -39,6 +40,7 @@ pub struct AppState {
     pub tera: Arc<Tera>,
     pub limiter: Arc<ratelimit::RateLimiter>,
     pub force_offline: Arc<std::sync::atomic::AtomicBool>,
+    pub events: tokio::sync::broadcast::Sender<String>,
 }
 
 #[tokio::main]
@@ -90,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         tera: Arc::new(tera),
         limiter: Arc::new(ratelimit::RateLimiter::default()),
         force_offline: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        events: tokio::sync::broadcast::channel::<String>(256).0,
     };
 
     // Background: auto-sync order lokal ke pusat tiap 30 detik.
@@ -183,6 +186,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/kiosk", get(queue::kiosk_page).post(queue::kiosk_take))
         .route("/kiosk/take", post(queue::kiosk_take))
         .route("/display", get(queue::display_page))
+        .route("/ws", get(realtime::ws_handler))
         .merge(protected)
         .nest_service("/assets", ServeDir::new(assets_dir))
         .nest_service("/storage", ServeDir::new(storage_dir))

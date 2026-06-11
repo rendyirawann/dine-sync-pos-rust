@@ -95,6 +95,20 @@
                 } else { Swal.fire('Gagal', res.error || 'Error', 'error'); }
             });
     }
+    // Realtime: order baru / perubahan → refresh layar dapur otomatis.
+    (function () {
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        let ws;
+        function connect() {
+            ws = new WebSocket(`${proto}://${location.host}/ws`);
+            ws.onmessage = (ev) => {
+                let e; try { e = JSON.parse(ev.data); } catch (_) { return; }
+                if (e.event === 'kitchen-update') { setTimeout(() => location.reload(), 600); }
+            };
+            ws.onclose = () => setTimeout(connect, 3000);
+        }
+        connect();
+    })();
 </script>
 {% endraw %}
 {% endblock %}

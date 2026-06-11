@@ -152,6 +152,7 @@ async fn push_pending(state: &AppState) -> anyhow::Result<i64> {
                 .await?;
             }
             let _ = sqlx::query("UPDATE tables SET status='occupied' WHERE id=$1").bind(table_id).execute(pg).await;
+            crate::realtime::kitchen_update(state); // order offline tersinkron → layar dapur refresh
         }
         sqlx::query("UPDATE local_orders SET synced = 1 WHERE uuid = ?").bind(&uuid).execute(local).await?;
         synced += 1;

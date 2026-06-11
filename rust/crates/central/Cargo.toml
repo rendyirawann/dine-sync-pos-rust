@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.102"
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["ws"] }
 bcrypt = "0.19.1"
 dotenvy = "0.15.7"
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }

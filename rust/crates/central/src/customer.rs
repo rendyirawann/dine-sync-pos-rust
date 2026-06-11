@@ -247,6 +247,7 @@ pub async fn checkout(State(state): State<AppState>, session: Session, Path(uuid
     if tx.commit().await.is_err() {
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":"Gagal menyimpan pesanan."}))).into_response();
     }
+    crate::realtime::kitchen_update(&state); // pesanan baru → layar dapur refresh
     Json(json!({"type":"pay_later","redirect":format!("/order-success/{uuid}")})).into_response()
 }
 

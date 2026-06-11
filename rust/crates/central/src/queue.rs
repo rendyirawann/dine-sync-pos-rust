@@ -94,10 +94,11 @@ pub async fn admin_status(user: CurrentUser, State(state): State<AppState>, sess
         .bind(id)
         .execute(&state.pool)
         .await;
-    // ?ok=<queue_number> dipakai display/notifikasi sederhana saat memanggil.
+    // Saat memanggil: broadcast ke layar TV (TTS + update kartu).
     if status == "called" {
-        let qn: Option<String> = sqlx::query_scalar("SELECT queue_number FROM queues WHERE id=$1").bind(id).fetch_optional(&state.pool).await.unwrap_or(None);
-        if let Some(n) = qn {
+        let row: Option<(String, String)> = sqlx::query_as("SELECT queue_number, customer_name FROM queues WHERE id=$1").bind(id).fetch_optional(&state.pool).await.unwrap_or(None);
+        if let Some((n, name)) = row {
+            crate::realtime::call_queue(&state, &n, &name);
             return Redirect::to(&format!("/admin/queues?ok={n}")).into_response();
         }
     }
@@ -147,6 +148,9 @@ pub async fn kiosk_take(State(state): State<AppState>, session: Session, Form(fo
         .bind(pax)
         .execute(&state.pool)
         .await;
+    if r.is_ok() {
+        crate::realtime::new_queue(&state); // beri tahu layar TV & dashboard antrian
+    }
     let mut ctx = tera::Context::new();
     ctx.insert("csrf_token", &auth::ensure_csrf(&session).await);
     ctx.insert("taken", &if r.is_ok() { Some(queue_number) } else { None });

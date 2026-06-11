@@ -456,6 +456,7 @@ async fn store_inner(state: &AppState, payload: &StorePayload) -> anyhow::Result
     }
 
     tx.commit().await?;
+    crate::realtime::kitchen_update(state); // order baru → layar dapur refresh
     Ok((order_id, if is_cash { "cash" } else { "pay_later" }))
 }
 

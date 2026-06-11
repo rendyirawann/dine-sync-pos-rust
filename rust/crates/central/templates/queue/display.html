@@ -3,27 +3,71 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="refresh" content="10">
     <title>Antrian — Layar TV</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" />
     <link href="/assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
     <link href="/assets/css/style.bundle.css" rel="stylesheet" type="text/css" />
-    <style>body{background:#0d0d1a;color:#fff;min-height:100vh;overflow:hidden}</style>
+    <style>
+        body{background:#0d0d1a;color:#fff;min-height:100vh;overflow:hidden}
+        #current.flash{animation:pulse 1s ease-in-out 3}
+        @keyframes pulse{0%,100%{color:#1b84ff}50%{color:#fff;text-shadow:0 0 40px #1b84ff}}
+        #audioGate{position:fixed;inset:0;background:rgba(13,13,26,.97);z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer}
+    </style>
 </head>
 <body>
+    <div id="audioGate"><i class="ki-outline ki-volume-up text-primary" style="font-size:6rem"></i><h1 class="text-white mt-5">Klik untuk mengaktifkan suara</h1><p class="text-gray-500">Layar antrian + pengumuman suara</p></div>
     <div class="row g-0 h-100" style="min-height:100vh">
         <div class="col-7 d-flex flex-column align-items-center justify-content-center border-end border-gray-800">
             <span class="text-gray-500 fw-semibold fs-2 text-uppercase mb-4">Sedang Dipanggil</span>
-            <div class="fw-bolder text-primary" style="font-size:18rem;line-height:1">{{ current }}</div>
+            <div id="current" class="fw-bolder text-primary" style="font-size:18rem;line-height:1">{{ current }}</div>
         </div>
-        <div class="col-5 p-10">
+        <div class="col-5 p-10 right-panel">
             <h2 class="text-gray-400 fw-bold mb-6 text-uppercase">Menunggu</h2>
-            <div class="d-flex flex-wrap gap-4">
+            <div class="d-flex flex-wrap gap-4" id="waitList">
                 {% for w in waiting %}
                 <span class="badge badge-light-warning fs-1 fw-bold px-5 py-3">{{ w.queue_number }}</span>
                 {% else %}<span class="text-gray-600 fs-3">Tidak ada antrian.</span>{% endfor %}
             </div>
         </div>
     </div>
+    <script>
+        let ready = false;
+        document.getElementById('audioGate').addEventListener('click', function () {
+            ready = true; this.style.display = 'none';
+            try { const u = new SpeechSynthesisUtterance('Monitor antrian aktif.'); u.lang = 'id-ID'; window.speechSynthesis.speak(u); } catch (e) {}
+        });
+        function speak(text) {
+            if (!ready) return;
+            try { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'id-ID'; u.rate = 0.85; window.speechSynthesis.speak(u); } catch (e) {}
+        }
+        function refreshWaiting() {
+            fetch(window.location.href, { cache: 'no-store' }).then(r => r.text()).then(html => {
+                const m = new DOMParser().parseFromString(html, 'text/html');
+                const nw = m.getElementById('waitList');
+                if (nw) document.getElementById('waitList').innerHTML = nw.innerHTML;
+            }).catch(() => {});
+        }
+        function connect() {
+            const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+            const ws = new WebSocket(`${proto}://${location.host}/ws`);
+            ws.onmessage = (ev) => {
+                let e; try { e = JSON.parse(ev.data); } catch (_) { return; }
+                if (e.event === 'call-event') {
+                    if (e.type === 'queue') {
+                        const el = document.getElementById('current');
+                        el.textContent = e.number; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+                        speak(e.text_to_speak);
+                        setTimeout(refreshWaiting, 4000);
+                    } else if (e.type === 'food') {
+                        speak(e.text_to_speak);
+                    }
+                } else if (e.event === 'new-queue') {
+                    refreshWaiting();
+                }
+            };
+            ws.onclose = () => setTimeout(connect, 3000); // reconnect
+        }
+        connect();
+    </script>
 </body>
 </html>

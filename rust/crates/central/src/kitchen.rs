@@ -210,7 +210,20 @@ pub async fn order_status(user: CurrentUser, State(state): State<AppState>, sess
         return Json(json!({"success": false, "error": format!("Gagal potong stok: {e}")})).into_response();
     }
     match tx.commit().await {
-        Ok(_) => Json(json!({"success": true, "is_finished": is_finished})).into_response(),
+        Ok(_) => {
+            crate::realtime::kitchen_update(&state);
+            if is_finished {
+                if let Ok(Some((name, invoice))) = sqlx::query_as::<_, (Option<String>, String)>("SELECT customer_name, invoice_no FROM orders WHERE id=$1")
+                    .bind(form.order_id)
+                    .fetch_optional(&state.pool)
+                    .await
+                {
+                    let num = invoice.split('-').nth(1).unwrap_or("").to_string();
+                    crate::realtime::food_ready(&state, &name.unwrap_or_else(|| "Pelanggan".into()), &num);
+                }
+            }
+            Json(json!({"success": true, "is_finished": is_finished})).into_response()
+        }
         Err(e) => Json(json!({"success": false, "error": e.to_string()})).into_response(),
     }
 }

@@ -43,3 +43,17 @@
     </div>
 </div>
 {% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+    (function () {
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(`${proto}://${location.host}/ws`);
+        ws.onmessage = (ev) => {
+            let e; try { e = JSON.parse(ev.data); } catch (_) { return; }
+            if (e.event === 'new-queue') { setTimeout(() => location.reload(), 800); }
+        };
+    })();
+</script>
+{% endraw %}
+{% endblock %}
