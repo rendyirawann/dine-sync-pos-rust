@@ -1,3 +1,4 @@
+mod audit;
 mod auth;
 mod customer;
 mod finance;
@@ -108,6 +109,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/users", get(usermgmt::users_index).post(usermgmt::user_store))
         .route("/admin/users/{id}", post(usermgmt::user_update))
         .route("/admin/users/{id}/delete", post(usermgmt::user_delete))
+        .route("/admin/users/{id}/ban", post(usermgmt::user_ban))
+        .route("/admin/users/{id}/unban", post(usermgmt::user_unban))
         .route("/admin/roles", get(usermgmt::roles_index).post(usermgmt::role_store))
         .route("/admin/roles/{id}", post(usermgmt::role_update))
         .route("/admin/roles/{id}/delete", post(usermgmt::role_delete))

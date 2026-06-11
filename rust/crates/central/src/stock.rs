@@ -326,6 +326,7 @@ pub async fn stock_store(user: CurrentUser, State(state): State<AppState>, sessi
     if tx.commit().await.is_err() {
         return redirect("/admin/stocks", false, "", "fail");
     }
+    crate::audit::log(&state, &user, "stok masuk", &format!("Stok masuk bahan #{} sejumlah {}", form.ingredient_id, qfmt(form.initial_quantity))).await;
     redirect("/admin/stocks", true, "saved", "")
 }
 
@@ -342,6 +343,9 @@ pub async fn stock_delete(user: CurrentUser, State(state): State<AppState>, sess
         return redirect("/admin/stocks", false, "", "csrf");
     }
     let r = sqlx::query("DELETE FROM ingredient_batches WHERE id=$1").bind(id).execute(&state.pool).await;
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "hapus batch", &format!("Menghapus batch stok #{id}")).await;
+    }
     redirect("/admin/stocks", r.is_ok(), "deleted", "fail")
 }
 
@@ -436,6 +440,9 @@ pub async fn recipe_add(user: CurrentUser, State(state): State<AppState>, sessio
         .bind(form.quantity)
         .execute(&state.pool)
         .await;
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "edit resep", &format!("Mengubah resep menu #{menu_id} (bahan #{})", form.ingredient_id)).await;
+    }
     redirect(&back, r.is_ok(), "saved", "fail")
 }
 
@@ -448,6 +455,7 @@ pub async fn recipe_row_delete(user: CurrentUser, State(state): State<AppState>,
     }
     let menu_id: Option<i64> = sqlx::query_scalar("SELECT menu_id FROM menu_ingredients WHERE id=$1").bind(id).fetch_optional(&state.pool).await.unwrap_or(None);
     let _ = sqlx::query("DELETE FROM menu_ingredients WHERE id=$1").bind(id).execute(&state.pool).await;
+    crate::audit::log(&state, &user, "edit resep", "Menghapus 1 bahan dari resep menu").await;
     let back = menu_id.map(|m| format!("/admin/recipes/{m}")).unwrap_or_else(|| "/admin/recipes".into());
     redirect(&back, true, "deleted", "")
 }
@@ -601,6 +609,7 @@ pub async fn opname_store(user: CurrentUser, State(state): State<AppState>, sess
     if tx.commit().await.is_err() {
         return redirect("/admin/stock-opname", false, "", "fail");
     }
+    crate::audit::log(&state, &user, "stock opname", &format!("Stock opname — {} bahan disesuaikan", adjs.len())).await;
     redirect("/admin/stock-opname", true, "opname", "")
 }
 

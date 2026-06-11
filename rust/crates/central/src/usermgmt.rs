@@ -42,6 +42,8 @@ fn flash_ok(c: Option<&str>) -> Option<&'static str> {
         Some("saved") => Some("Data berhasil disimpan."),
         Some("updated") => Some("Data berhasil diperbarui."),
         Some("deleted") => Some("Data berhasil dihapus."),
+        Some("blocked") => Some("User berhasil diblokir (tidak bisa login)."),
+        Some("activated") => Some("User diaktifkan kembali."),
         _ => None,
     }
 }
@@ -73,6 +75,7 @@ struct UserRow {
     email: String,
     no_wa: String,
     is_active: bool,
+    banned: bool,
     last_login: String,
     roles: String,
     role_ids: String,
@@ -99,28 +102,29 @@ pub async fn users_index(user: CurrentUser, State(state): State<AppState>, sessi
     if !user.can(GATE) {
         return forbidden();
     }
-    let rows: Vec<UserRow> = sqlx::query_as::<_, (String, String, String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>)>(
-        "SELECT u.id::text, u.name, u.username, u.email, u.no_wa, u.is_active, \
+    let rows: Vec<UserRow> = sqlx::query_as::<_, (String, String, String, String, Option<String>, bool, bool, Option<String>, Option<String>, Option<String>)>(
+        "SELECT u.id::text, u.name, u.username, u.email, u.no_wa, u.is_active, (u.banned_at IS NOT NULL), \
                 to_char(u.last_login,'DD Mon YYYY HH24:MI'), \
                 string_agg(r.name, ', ' ORDER BY r.name), \
                 string_agg(mhr.role_id::text, ',') \
          FROM users u \
          LEFT JOIN model_has_roles mhr ON mhr.model_id = u.id \
          LEFT JOIN roles r ON r.id = mhr.role_id \
-         GROUP BY u.id, u.name, u.username, u.email, u.no_wa, u.is_active, u.last_login, u.created_at \
+         GROUP BY u.id, u.name, u.username, u.email, u.no_wa, u.is_active, u.banned_at, u.last_login, u.created_at \
          ORDER BY u.created_at DESC NULLS LAST",
     )
     .fetch_all(&state.pool)
     .await
     .unwrap_or_default()
     .into_iter()
-    .map(|(id, name, username, email, no_wa, is_active, last_login, roles, role_ids)| UserRow {
+    .map(|(id, name, username, email, no_wa, is_active, banned, last_login, roles, role_ids)| UserRow {
         id,
         name,
         username,
         email,
         no_wa: no_wa.unwrap_or_default(),
         is_active,
+        banned,
         last_login: last_login.unwrap_or_else(|| "Belum pernah".into()),
         roles: roles.filter(|s| !s.is_empty()).unwrap_or_else(|| "—".into()),
         role_ids: role_ids.unwrap_or_default(),
@@ -177,6 +181,7 @@ pub async fn user_store(user: CurrentUser, State(state): State<AppState>, sessio
         Err(_) => return redirect("/admin/users", false, "", "fail"),
     };
     assign_roles(&state, &uid, &role_ids).await;
+    crate::audit::log(&state, &user, "tambah user", &format!("Membuat user {name} ({username})")).await;
     redirect("/admin/users", true, "saved", "")
 }
 
@@ -218,6 +223,7 @@ pub async fn user_update(user: CurrentUser, State(state): State<AppState>, sessi
     // Sync role.
     let _ = sqlx::query("DELETE FROM model_has_roles WHERE model_id::text=$1").bind(&id).execute(&state.pool).await;
     assign_roles(&state, &id, &role_ids).await;
+    crate::audit::log(&state, &user, "edit user", &format!("Mengubah user {name}")).await;
     redirect("/admin/users", true, "updated", "")
 }
 
@@ -238,7 +244,59 @@ pub async fn user_delete(user: CurrentUser, State(state): State<AppState>, sessi
     }
     let _ = sqlx::query("DELETE FROM model_has_roles WHERE model_id::text=$1").bind(&id).execute(&state.pool).await;
     let r = sqlx::query("DELETE FROM users WHERE id::text=$1").bind(&id).execute(&state.pool).await;
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "hapus user", &format!("Menghapus user {}", uname.unwrap_or_default())).await;
+    }
     redirect("/admin/users", r.is_ok(), "deleted", "fail")
+}
+
+#[derive(Deserialize)]
+pub struct BanForm {
+    #[serde(rename = "_token", default)]
+    csrf: String,
+    #[serde(default)]
+    reason: String,
+}
+/// Blokir user: set banned_at + is_active=false (login akan menolak). Guard: bukan diri sendiri / superadmin.
+pub async fn user_ban(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<String>, Form(form): Form<BanForm>) -> Response {
+    if !user.can(GATE) {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return redirect("/admin/users", false, "", "csrf");
+    }
+    if id == user.id.to_string() {
+        return redirect("/admin/users", false, "", "self");
+    }
+    let row: Option<(String, String)> = sqlx::query_as("SELECT username, name FROM users WHERE id::text=$1").bind(&id).fetch_optional(&state.pool).await.unwrap_or(None);
+    let Some((uname, name)) = row else {
+        return redirect("/admin/users", false, "", "fail");
+    };
+    if uname == "superadmin" {
+        return redirect("/admin/users", false, "", "protected");
+    }
+    let r = sqlx::query("UPDATE users SET banned_at=now(), is_active=false, updated_at=now() WHERE id::text=$1").bind(&id).execute(&state.pool).await;
+    if r.is_ok() {
+        let reason = form.reason.trim();
+        let desc = if reason.is_empty() { format!("Memblokir user {name}") } else { format!("Memblokir user {name} — alasan: {reason}") };
+        crate::audit::log(&state, &user, "blokir user", &desc).await;
+    }
+    redirect("/admin/users", r.is_ok(), "blocked", "fail")
+}
+/// Aktifkan kembali user: hapus banned_at + is_active=true.
+pub async fn user_unban(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<String>, Form(form): Form<CsrfOnly>) -> Response {
+    if !user.can(GATE) {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return redirect("/admin/users", false, "", "csrf");
+    }
+    let name: Option<String> = sqlx::query_scalar("SELECT name FROM users WHERE id::text=$1").bind(&id).fetch_optional(&state.pool).await.unwrap_or(None);
+    let r = sqlx::query("UPDATE users SET banned_at=NULL, is_active=true, updated_at=now() WHERE id::text=$1").bind(&id).execute(&state.pool).await;
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "aktifkan user", &format!("Mengaktifkan user {}", name.unwrap_or_default())).await;
+    }
+    redirect("/admin/users", r.is_ok(), "activated", "fail")
 }
 
 async fn assign_roles(state: &AppState, user_id: &str, role_ids: &[i64]) {
@@ -361,6 +419,7 @@ pub async fn role_store(user: CurrentUser, State(state): State<AppState>, sessio
         Err(_) => return redirect("/admin/roles", false, "", "fail"),
     };
     sync_perms(&state, rid, &parse_ids(&form.permissions)).await;
+    crate::audit::log(&state, &user, "tambah role", &format!("Membuat role {name}")).await;
     redirect("/admin/roles", true, "saved", "")
 }
 
@@ -385,6 +444,7 @@ pub async fn role_update(user: CurrentUser, State(state): State<AppState>, sessi
     }
     let _ = sqlx::query("DELETE FROM role_has_permissions WHERE role_id=$1").bind(id).execute(&state.pool).await;
     sync_perms(&state, id, &parse_ids(&form.permissions)).await;
+    crate::audit::log(&state, &user, "edit role", &format!("Mengubah role {name}")).await;
     redirect("/admin/roles", true, "updated", "")
 }
 
@@ -407,6 +467,9 @@ pub async fn role_delete(user: CurrentUser, State(state): State<AppState>, sessi
     }
     let _ = sqlx::query("DELETE FROM role_has_permissions WHERE role_id=$1").bind(id).execute(&state.pool).await;
     let r = sqlx::query("DELETE FROM roles WHERE id=$1").bind(id).execute(&state.pool).await;
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "hapus role", &format!("Menghapus role {}", rname.unwrap_or_default())).await;
+    }
     redirect("/admin/roles", r.is_ok(), "deleted", "fail")
 }
 

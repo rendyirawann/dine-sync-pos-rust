@@ -111,7 +111,7 @@ pub async fn category_store(user: CurrentUser, State(state): State<AppState>, se
         .bind(slugify(&form.name))
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/categories", r.is_ok(), "saved")
+    mlog(&state, &user, "/admin/categories", r.is_ok(), "saved").await
 }
 
 pub async fn category_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CategoryForm>) -> Response {
@@ -127,7 +127,7 @@ pub async fn category_update(user: CurrentUser, State(state): State<AppState>, s
         .bind(id)
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/categories", r.is_ok(), "updated")
+    mlog(&state, &user, "/admin/categories", r.is_ok(), "updated").await
 }
 
 pub async fn category_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
@@ -142,7 +142,7 @@ pub async fn category_delete(user: CurrentUser, State(state): State<AppState>, s
         return Redirect::to("/admin/categories?err=used").into_response();
     }
     let r = sqlx::query("DELETE FROM categories WHERE id=$1").bind(id).execute(&state.pool).await;
-    redirect_master("/admin/categories", r.is_ok(), "deleted")
+    mlog(&state, &user, "/admin/categories", r.is_ok(), "deleted").await
 }
 
 // ================= MENUS =================
@@ -220,7 +220,7 @@ pub async fn menu_store(user: CurrentUser, State(state): State<AppState>, sessio
     .bind(form.is_available.is_some())
     .execute(&state.pool)
     .await;
-    redirect_master("/admin/menus", r.is_ok(), "saved")
+    mlog(&state, &user, "/admin/menus", r.is_ok(), "saved").await
 }
 
 pub async fn menu_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<MenuForm>) -> Response {
@@ -241,7 +241,7 @@ pub async fn menu_update(user: CurrentUser, State(state): State<AppState>, sessi
     .bind(id)
     .execute(&state.pool)
     .await;
-    redirect_master("/admin/menus", r.is_ok(), "updated")
+    mlog(&state, &user, "/admin/menus", r.is_ok(), "updated").await
 }
 
 pub async fn menu_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
@@ -256,7 +256,7 @@ pub async fn menu_delete(user: CurrentUser, State(state): State<AppState>, sessi
         return Redirect::to("/admin/menus?err=used").into_response();
     }
     let r = sqlx::query("DELETE FROM menus WHERE id=$1").bind(id).execute(&state.pool).await;
-    redirect_master("/admin/menus", r.is_ok(), "deleted")
+    mlog(&state, &user, "/admin/menus", r.is_ok(), "deleted").await
 }
 
 // ================= TABLES (meja) =================
@@ -305,7 +305,7 @@ pub async fn table_store(user: CurrentUser, State(state): State<AppState>, sessi
         .bind(&form.status)
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/tables", r.is_ok(), "saved")
+    mlog(&state, &user, "/admin/tables", r.is_ok(), "saved").await
 }
 
 pub async fn table_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<TableForm>) -> Response {
@@ -322,7 +322,7 @@ pub async fn table_update(user: CurrentUser, State(state): State<AppState>, sess
         .bind(id)
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/tables", r.is_ok(), "updated")
+    mlog(&state, &user, "/admin/tables", r.is_ok(), "updated").await
 }
 
 pub async fn table_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
@@ -337,7 +337,7 @@ pub async fn table_delete(user: CurrentUser, State(state): State<AppState>, sess
         return Redirect::to("/admin/tables?err=used").into_response();
     }
     let r = sqlx::query("DELETE FROM tables WHERE id=$1").bind(id).execute(&state.pool).await;
-    redirect_master("/admin/tables", r.is_ok(), "deleted")
+    mlog(&state, &user, "/admin/tables", r.is_ok(), "deleted").await
 }
 
 #[derive(Deserialize)]
@@ -353,6 +353,29 @@ fn redirect_master(base: &str, ok: bool, ok_code: &str) -> Response {
         format!("{base}?err=fail")
     };
     Redirect::to(&target).into_response()
+}
+
+/// Log aksi master-data ke activity_log (hanya saat sukses), lalu redirect seperti biasa.
+async fn mlog(state: &AppState, user: &CurrentUser, base: &str, ok: bool, ok_code: &str) -> Response {
+    if ok {
+        let entity = match base.rsplit('/').next().unwrap_or("") {
+            "categories" => "kategori",
+            "menus" => "menu",
+            "tables" => "meja",
+            "promos" => "promo",
+            "suppliers" => "supplier",
+            "ingredients" => "bahan",
+            other => other,
+        };
+        let action = match ok_code {
+            "saved" => "Menambah",
+            "updated" => "Mengubah",
+            "deleted" => "Menghapus",
+            _ => "Mengubah",
+        };
+        crate::audit::log(state, user, "data master", &format!("{action} {entity}")).await;
+    }
+    redirect_master(base, ok, ok_code)
 }
 
 // ================= PROMOS =================
@@ -405,7 +428,7 @@ pub async fn promo_store(user: CurrentUser, State(state): State<AppState>, sessi
         .bind(form.is_active.is_some())
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/promos", r.is_ok(), "saved")
+    mlog(&state, &user, "/admin/promos", r.is_ok(), "saved").await
 }
 
 pub async fn promo_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<PromoForm>) -> Response {
@@ -423,7 +446,7 @@ pub async fn promo_update(user: CurrentUser, State(state): State<AppState>, sess
         .bind(id)
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/promos", r.is_ok(), "updated")
+    mlog(&state, &user, "/admin/promos", r.is_ok(), "updated").await
 }
 
 pub async fn promo_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
@@ -438,7 +461,7 @@ pub async fn promo_delete(user: CurrentUser, State(state): State<AppState>, sess
         return Redirect::to("/admin/promos?err=used").into_response();
     }
     let r = sqlx::query("DELETE FROM promos WHERE id=$1").bind(id).execute(&state.pool).await;
-    redirect_master("/admin/promos", r.is_ok(), "deleted")
+    mlog(&state, &user, "/admin/promos", r.is_ok(), "deleted").await
 }
 
 // ================= SUPPLIERS =================
@@ -493,7 +516,7 @@ pub async fn supplier_store(user: CurrentUser, State(state): State<AppState>, se
         .bind(opt(&form.address))
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/suppliers", r.is_ok(), "saved")
+    mlog(&state, &user, "/admin/suppliers", r.is_ok(), "saved").await
 }
 
 pub async fn supplier_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<SupplierForm>) -> Response {
@@ -511,7 +534,7 @@ pub async fn supplier_update(user: CurrentUser, State(state): State<AppState>, s
         .bind(id)
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/suppliers", r.is_ok(), "updated")
+    mlog(&state, &user, "/admin/suppliers", r.is_ok(), "updated").await
 }
 
 pub async fn supplier_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
@@ -526,7 +549,7 @@ pub async fn supplier_delete(user: CurrentUser, State(state): State<AppState>, s
         return Redirect::to("/admin/suppliers?err=used").into_response();
     }
     let r = sqlx::query("DELETE FROM suppliers WHERE id=$1").bind(id).execute(&state.pool).await;
-    redirect_master("/admin/suppliers", r.is_ok(), "deleted")
+    mlog(&state, &user, "/admin/suppliers", r.is_ok(), "deleted").await
 }
 
 // ================= INGREDIENTS (Bahan) =================
@@ -575,7 +598,7 @@ pub async fn ingredient_store(user: CurrentUser, State(state): State<AppState>, 
         .bind(form.minimum_stock)
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/ingredients", r.is_ok(), "saved")
+    mlog(&state, &user, "/admin/ingredients", r.is_ok(), "saved").await
 }
 
 pub async fn ingredient_update(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<IngredientForm>) -> Response {
@@ -592,7 +615,7 @@ pub async fn ingredient_update(user: CurrentUser, State(state): State<AppState>,
         .bind(id)
         .execute(&state.pool)
         .await;
-    redirect_master("/admin/ingredients", r.is_ok(), "updated")
+    mlog(&state, &user, "/admin/ingredients", r.is_ok(), "updated").await
 }
 
 pub async fn ingredient_delete(user: CurrentUser, State(state): State<AppState>, session: Session, Path(id): Path<i64>, Form(form): Form<CsrfOnly>) -> Response {
@@ -608,7 +631,7 @@ pub async fn ingredient_delete(user: CurrentUser, State(state): State<AppState>,
         return Redirect::to("/admin/ingredients?err=used").into_response();
     }
     let r = sqlx::query("DELETE FROM ingredients WHERE id=$1").bind(id).execute(&state.pool).await;
-    redirect_master("/admin/ingredients", r.is_ok(), "deleted")
+    mlog(&state, &user, "/admin/ingredients", r.is_ok(), "deleted").await
 }
 
 /// Trim + None bila kosong (untuk kolom nullable).

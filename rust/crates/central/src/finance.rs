@@ -128,6 +128,9 @@ pub async fn expense_store(user: CurrentUser, State(state): State<AppState>, ses
     .bind(user.id)
     .execute(&state.pool)
     .await;
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "tambah pengeluaran", &format!("Mencatat pengeluaran {} Rp{}", form.category.trim(), form.amount)).await;
+    }
     redirect("/admin/expenses", r.is_ok(), "saved")
 }
 
@@ -146,6 +149,9 @@ pub async fn expense_update(user: CurrentUser, State(state): State<AppState>, se
         .bind(id)
         .execute(&state.pool)
         .await;
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "edit pengeluaran", &format!("Mengubah pengeluaran #{id}")).await;
+    }
     redirect("/admin/expenses", r.is_ok(), "updated")
 }
 
@@ -157,6 +163,9 @@ pub async fn expense_delete(user: CurrentUser, State(state): State<AppState>, se
         return Redirect::to("/admin/expenses?err=csrf").into_response();
     }
     let r = sqlx::query("DELETE FROM expenses WHERE id=$1").bind(id).execute(&state.pool).await;
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "hapus pengeluaran", &format!("Menghapus pengeluaran #{id}")).await;
+    }
     redirect("/admin/expenses", r.is_ok(), "deleted")
 }
 
@@ -173,6 +182,9 @@ pub async fn set_budget(user: CurrentUser, State(state): State<AppState>, sessio
         .bind(&form.date).bind(form.budget).execute(pool).await;
     let r2 = sqlx::query("INSERT INTO daily_sales_targets (date, amount, created_at, updated_at) VALUES ($1::date, $2::numeric, now(), now()) ON CONFLICT (date) DO UPDATE SET amount=$2::numeric, updated_at=now()")
         .bind(&form.date).bind(form.target).execute(pool).await;
+    if r1.is_ok() && r2.is_ok() {
+        crate::audit::log(&state, &user, "set budget", &format!("Set budget/target harian tgl {}", form.date)).await;
+    }
     redirect("/admin/expenses", r1.is_ok() && r2.is_ok(), "budget")
 }
 

@@ -24,10 +24,15 @@
                             <td><span class="badge badge-light">{{ r.username }}</span></td>
                             <td class="text-muted">{{ r.no_wa }}</td>
                             <td>{% for rl in r.roles | split(pat=", ") %}<span class="badge badge-light-info me-1">{{ rl }}</span>{% endfor %}</td>
-                            <td class="text-center">{% if r.is_active %}<span class="badge badge-light-success">Aktif</span>{% else %}<span class="badge badge-light-danger">Nonaktif</span>{% endif %}</td>
+                            <td class="text-center">{% if r.banned %}<span class="badge badge-light-danger">Diblokir</span>{% elif r.is_active %}<span class="badge badge-light-success">Aktif</span>{% else %}<span class="badge badge-light-warning">Nonaktif</span>{% endif %}</td>
                             <td class="text-muted fs-8">{{ r.last_login }}</td>
                             <td class="text-end">
                                 <button class="btn btn-sm btn-light-primary u-edit" data-id="{{ r.id }}" data-name="{{ r.name }}" data-username="{{ r.username }}" data-email="{{ r.email }}" data-wa="{{ r.no_wa }}" data-roles="{{ r.role_ids }}">Edit</button>
+                                {% if r.banned %}
+                                <form method="POST" action="/admin/users/{{ r.id }}/unban" class="d-inline" onsubmit="return confirm('Aktifkan kembali {{ r.name }}?')"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-success">Aktifkan</button></form>
+                                {% else %}
+                                <button class="btn btn-sm btn-light-warning b-ban" data-id="{{ r.id }}" data-name="{{ r.name }}">Blokir</button>
+                                {% endif %}
                                 <form method="POST" action="/admin/users/{{ r.id }}/delete" class="d-inline" onsubmit="return confirm('Hapus user {{ r.name }}?')"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="btn btn-sm btn-light-danger">Hapus</button></form>
                             </td>
                         </tr>
@@ -64,6 +69,17 @@
             </div>
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+</div></div></div>
+<div class="modal fade" id="banModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" id="banForm">
+        <div class="modal-header"><h2 class="fw-bold">Blokir User</h2><div class="btn btn-icon btn-sm" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div></div>
+        <div class="modal-body">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <p class="text-muted">User <b id="banName"></b> tidak akan bisa login sampai diaktifkan kembali.</p>
+            <div class="mb-2"><label class="form-label fw-semibold">Alasan (opsional)</label><input type="text" name="reason" id="banReason" class="form-control form-control-solid" placeholder="mis. pelanggaran SOP"></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-warning">Blokir</button></div>
     </form>
 </div></div></div>
 {% endblock %}
@@ -104,6 +120,12 @@
         const ids = [...document.querySelectorAll('.u-role:checked')].map(c => c.value);
         document.getElementById('uRoles').value = ids.join(',');
     });
+    document.querySelectorAll('.b-ban').forEach(b => b.addEventListener('click', function () {
+        document.getElementById('banForm').action = '/admin/users/' + this.dataset.id + '/ban';
+        document.getElementById('banName').textContent = this.dataset.name;
+        document.getElementById('banReason').value = '';
+        $('#banModal').modal('show');
+    }));
 </script>
 {% endraw %}
 {% endblock %}
