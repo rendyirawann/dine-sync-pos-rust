@@ -67,13 +67,18 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
-    // Muat .env: prioritas di samping exe (distribusi), lalu CWD (dev).
+    // Muat .env (var yang sudah ada TIDAK ditimpa):
+    //  1) di samping exe (distribusi / VPS),
+    //  2) folder kerja saat ini (CWD),
+    //  3) .env milik crate ini → memastikan rust/crates/central/.env SELALU terbaca saat dev,
+    //     apa pun folder tempat `cargo run` dipanggil. (from_path gagal diam-diam bila tak ada, mis. di VPS.)
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             dotenvy::from_path(dir.join(".env")).ok();
         }
     }
     dotenvy::dotenv().ok();
+    dotenvy::from_path(concat!(env!("CARGO_MANIFEST_DIR"), "/.env")).ok();
 
     let db_url = std::env::var("DATABASE_URL")
         .expect("DATABASE_URL belum di-set (lihat .env di samping central.exe)");

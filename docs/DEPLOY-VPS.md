@@ -142,3 +142,9 @@ pg_dump -U postgres dinesync_pos_rust > /root/backup_$(date +%F).sql   # jadwalk
 ## 11. Verifikasi setelah deploy
 - `curl https://pos.namatoko.com/health` → `ok`.
 - Login admin → cek beberapa halaman, atau salin `rust/smoke-test.ps1` logikanya (login + GET halaman utama) untuk cek cepat.
+
+
+Di mana	Saat ada perubahan kode
+Lokal (Windows, ngoding)	edit → cargo run untuk uji → git push
+VPS (Linux)	git pull → cargo build --release → sudo systemctl restart dinesync
+Skema DB berubah	jalankan SQL-nya manual di Postgres VPS
