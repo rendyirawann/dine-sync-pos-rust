@@ -34,6 +34,21 @@ use tera::Tera;
 use tower_http::services::ServeDir;
 use tower_sessions::{MemoryStore, SessionManagerLayer};
 
+/// Template di-embed ke biner saat rilis (standalone .exe); saat debug dibaca dari disk (live-edit).
+#[derive(rust_embed::RustEmbed)]
+#[folder = "templates/"]
+struct Templates;
+
+/// Bangun Tera dari template ter-embed (nama = path relatif, mis. "layout/app.html").
+fn build_tera() -> anyhow::Result<Tera> {
+    let mut tera = Tera::default();
+    let raw: Vec<(String, String)> = Templates::iter()
+        .filter_map(|p| Templates::get(&p).and_then(|f| std::str::from_utf8(&f.data).ok().map(|s| (p.to_string(), s.to_string()))))
+        .collect();
+    tera.add_raw_templates(raw.iter().map(|(n, c)| (n.as_str(), c.as_str())))?;
+    Ok(tera)
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
@@ -50,10 +65,16 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
+    // Muat .env: prioritas di samping exe (distribusi), lalu CWD (dev).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            dotenvy::from_path(dir.join(".env")).ok();
+        }
+    }
     dotenvy::dotenv().ok();
 
     let db_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL belum di-set (lihat rust/crates/central/.env)");
+        .expect("DATABASE_URL belum di-set (lihat .env di samping central.exe)");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -67,14 +88,22 @@ async fn main() -> anyhow::Result<()> {
         .connect_lazy(&db_url)?;
     tracing::info!("Pool PostgreSQL siap (lazy, TZ=Asia/Jakarta)");
 
-    // Path absolut berbasis lokasi crate (cwd-independent), pakai '/' agar aman di Windows.
-    let manifest_dir = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
-    let tera = Tera::new(&format!("{manifest_dir}/templates/**/*.html"))?;
-    let assets_dir = format!("{manifest_dir}/../../../public/assets");
-    let storage_dir = format!("{manifest_dir}/../../../storage/app/public");
+    // Template di-embed (build_tera) → tak butuh folder templates/ saat dijalankan.
+    let tera = build_tera()?;
 
-    // DB lokal (SQLite) untuk mode offline / local-first.
-    let local_db = format!("{manifest_dir}/local.db");
+    // Direktori exe → aset/storage/local.db dicari di sini dulu (distribusi),
+    // fallback ke pohon sumber saat dev.
+    let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).unwrap_or_else(|| std::path::PathBuf::from("."));
+    let manifest_dir = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
+    let resolve = |name: &str, dev: String| -> String {
+        let c = exe_dir.join(name);
+        if c.is_dir() { c.to_string_lossy().replace('\\', "/") } else { dev }
+    };
+    let assets_dir = resolve("assets", format!("{manifest_dir}/../../../public/assets"));
+    let storage_dir = resolve("storage", format!("{manifest_dir}/../../../storage/app/public"));
+
+    // DB lokal (SQLite) selalu di samping exe (per-device, writable).
+    let local_db = exe_dir.join("local.db").to_string_lossy().replace('\\', "/");
     let local = sqlx::sqlite::SqlitePoolOptions::new()
         .connect_with(
             sqlx::sqlite::SqliteConnectOptions::new()

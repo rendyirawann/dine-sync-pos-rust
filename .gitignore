@@ -29,6 +29,9 @@ Thumbs.db
 # Rust build artifacts
 /rust/target
 
+# Distribusi/bundle .exe (hasil package.ps1) — jangan commit (besar + berisi .env)
+/rust/dist
+
 # SQLite DB lokal (per-device, local-first)
 /rust/crates/central/local.db
 /rust/crates/central/local.db-*
