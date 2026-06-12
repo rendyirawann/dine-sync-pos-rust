@@ -613,6 +613,58 @@ pub async fn opname_store(user: CurrentUser, State(state): State<AppState>, sess
     redirect("/admin/stock-opname", true, "opname", "")
 }
 
+#[derive(Serialize)]
+struct OpnameLine {
+    ingredient: String,
+    system: String,
+    physical: String,
+    diff: String,
+    neg: bool,
+    pos: bool,
+}
+/// GET /admin/stock-opname/{id}/print — lembar hasil opname (siap cetak/PDF via browser).
+pub async fn opname_print(user: CurrentUser, State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    if !user.can("view_finance") {
+        return forbidden("view_finance");
+    }
+    let hdr: Option<(Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT to_char(o.date,'DD Mon YYYY'), u.name, o.notes FROM stock_opnames o LEFT JOIN users u ON u.id=o.user_id WHERE o.id=$1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .unwrap_or(None);
+    let Some((date, petugas, notes)) = hdr else {
+        return Redirect::to("/admin/stock-opname").into_response();
+    };
+    let lines: Vec<OpnameLine> = sqlx::query_as::<_, (String, f64, f64, f64)>(
+        "SELECT i.name, d.system_qty::float8, d.physical_qty::float8, d.difference::float8 \
+         FROM stock_opname_details d JOIN ingredients i ON i.id=d.ingredient_id WHERE d.stock_opname_id=$1 ORDER BY i.name",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(ingredient, system, physical, diff)| OpnameLine {
+        ingredient,
+        system: qfmt(system),
+        physical: qfmt(physical),
+        diff: format!("{}{}", if diff > 0.0 { "+" } else { "" }, qfmt(diff)),
+        neg: diff < -1e-9,
+        pos: diff > 1e-9,
+    })
+    .collect();
+    let store: String = sqlx::query_scalar("SELECT COALESCE((SELECT store_name FROM settings LIMIT 1),'DineSync POS')").fetch_one(&state.pool).await.unwrap_or_else(|_| "DineSync POS".into());
+    let mut ctx = tera::Context::new();
+    ctx.insert("store", &store);
+    ctx.insert("date", &date.unwrap_or_default());
+    ctx.insert("petugas", &petugas.unwrap_or_else(|| "—".into()));
+    ctx.insert("notes", &notes.unwrap_or_default());
+    ctx.insert("lines", &lines);
+    render(&state, "stock/opname_print.html", &ctx)
+}
+
 // =================================================================
 // KARTU STOK (stock_movements) — gate view_finance
 // =================================================================

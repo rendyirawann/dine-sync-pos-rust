@@ -44,6 +44,7 @@ fn flash_ok(c: Option<&str>) -> Option<&'static str> {
         Some("deleted") => Some("Data berhasil dihapus."),
         Some("blocked") => Some("User berhasil diblokir (tidak bisa login)."),
         Some("activated") => Some("User diaktifkan kembali."),
+        Some("pwchanged") => Some("Password berhasil diganti."),
         _ => None,
     }
 }
@@ -55,6 +56,9 @@ fn flash_err(c: Option<&str>) -> Option<&'static str> {
         Some("used") => Some("Tidak bisa dihapus: masih dipakai (role terpasang ke user)."),
         Some("self") => Some("Tidak bisa menghapus akun Anda sendiri."),
         Some("protected") => Some("Akun/role Superadmin dilindungi dan tidak bisa dihapus."),
+        Some("len") => Some("Password baru minimal 8 karakter."),
+        Some("mismatch") => Some("Konfirmasi password tidak cocok."),
+        Some("wrongpass") => Some("Password lama salah."),
         _ => None,
     }
 }
@@ -481,4 +485,49 @@ async fn sync_perms(state: &AppState, role_id: i64, perm_ids: &[i64]) {
             .execute(&state.pool)
             .await;
     }
+}
+
+// ===================== AKUN SAYA (ganti password mandiri) =====================
+// Tanpa gate khusus — setiap user yang login boleh mengganti password sendiri.
+#[derive(Deserialize)]
+pub struct AccountForm {
+    #[serde(rename = "_token", default)]
+    csrf: String,
+    #[serde(default)]
+    current: String,
+    #[serde(default)]
+    new_password: String,
+    #[serde(default)]
+    confirm: String,
+}
+pub async fn account_page(user: CurrentUser, State(state): State<AppState>, session: Session, Query(f): Query<Flash>) -> Response {
+    let mut ctx = ctx_with_flash(&state, &user, "", &session, &f).await;
+    ctx.insert("acc_name", &user.name);
+    ctx.insert("acc_email", &user.email);
+    ctx.insert("acc_role", user.roles.first().map(String::as_str).unwrap_or("Staff"));
+    render(&state, "usermgmt/account.html", &ctx)
+}
+pub async fn account_update(user: CurrentUser, State(state): State<AppState>, session: Session, Form(form): Form<AccountForm>) -> Response {
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return redirect("/admin/account", false, "", "csrf");
+    }
+    if form.new_password.len() < 8 {
+        return redirect("/admin/account", false, "", "len");
+    }
+    if form.new_password != form.confirm {
+        return redirect("/admin/account", false, "", "mismatch");
+    }
+    // Verifikasi password lama.
+    let hash: Option<String> = sqlx::query_scalar("SELECT password FROM users WHERE id=$1").bind(user.id).fetch_optional(&state.pool).await.unwrap_or(None);
+    let ok = hash.map(|h| bcrypt::verify(&form.current, &h).unwrap_or(false)).unwrap_or(false);
+    if !ok {
+        return redirect("/admin/account", false, "", "wrongpass");
+    }
+    let new_hash = match bcrypt::hash(&form.new_password, bcrypt::DEFAULT_COST) {
+        Ok(h) => h,
+        Err(_) => return redirect("/admin/account", false, "", "fail"),
+    };
+    let _ = sqlx::query("UPDATE users SET password=$1, updated_at=now() WHERE id=$2").bind(&new_hash).bind(user.id).execute(&state.pool).await;
+    crate::audit::log(&state, &user, "ganti password", "Mengganti password sendiri").await;
+    redirect("/admin/account", true, "pwchanged", "")
 }

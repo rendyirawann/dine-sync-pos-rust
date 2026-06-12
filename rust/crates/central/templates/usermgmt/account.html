@@ -1,0 +1,33 @@
+{% extends "layout/app.html" %}
+{% block title %}Akun Saya — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <h1 class="fw-bold fs-2 mb-6"><i class="ki-outline ki-profile-circle fs-1 me-2"></i> Akun Saya</h1>
+        <div class="row g-5">
+            <div class="col-lg-5">
+                <div class="card shadow-sm"><div class="card-body">
+                    <h3 class="fw-bold mb-4">Profil</h3>
+                    <div class="mb-3"><span class="text-muted fs-7 d-block">Nama</span><span class="fw-bold fs-5 text-gray-800">{{ acc_name }}</span></div>
+                    <div class="mb-3"><span class="text-muted fs-7 d-block">Email</span><span class="fw-semibold">{{ acc_email }}</span></div>
+                    <div><span class="text-muted fs-7 d-block">Role</span><span class="badge badge-light-info">{{ acc_role }}</span></div>
+                </div></div>
+            </div>
+            <div class="col-lg-7">
+                <div class="card shadow-sm"><div class="card-body">
+                    <h3 class="fw-bold mb-4">Ganti Password</h3>
+                    <form method="POST" action="/admin/account">
+                        <input type="hidden" name="_token" value="{{ csrf_token }}">
+                        <div class="mb-4"><label class="form-label required fw-semibold">Password Lama</label><input type="password" name="current" class="form-control form-control-solid" required autocomplete="current-password"></div>
+                        <div class="mb-4"><label class="form-label required fw-semibold">Password Baru</label><input type="password" name="new_password" class="form-control form-control-solid" required minlength="8" autocomplete="new-password"><div class="form-text">Minimal 8 karakter.</div></div>
+                        <div class="mb-5"><label class="form-label required fw-semibold">Konfirmasi Password Baru</label><input type="password" name="confirm" class="form-control form-control-solid" required minlength="8" autocomplete="new-password"></div>
+                        <button type="submit" class="btn btn-primary"><i class="ki-outline ki-check fs-3"></i> Ganti Password</button>
+                    </form>
+                </div></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

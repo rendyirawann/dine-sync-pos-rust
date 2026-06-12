@@ -37,11 +37,11 @@
             <div class="card-header"><h3 class="card-title fw-bold">Riwayat Opname</h3></div>
             <div class="card-body">
                 <table class="table table-row-dashed align-middle gy-2">
-                    <thead><tr class="fw-bold text-muted"><th>Tanggal</th><th>Petugas</th><th>Catatan</th><th class="text-center">Item</th></tr></thead>
+                    <thead><tr class="fw-bold text-muted"><th>Tanggal</th><th>Petugas</th><th>Catatan</th><th class="text-center">Item</th><th class="text-end">Aksi</th></tr></thead>
                     <tbody>
                         {% for h in history %}
-                        <tr><td class="fw-semibold">{{ h.date }}</td><td>{{ h.user }}</td><td class="text-muted">{{ h.notes }}</td><td class="text-center"><span class="badge badge-light-primary">{{ h.items }}</span></td></tr>
-                        {% else %}<tr><td colspan="4" class="text-center text-muted py-5">Belum ada riwayat opname.</td></tr>{% endfor %}
+                        <tr><td class="fw-semibold">{{ h.date }}</td><td>{{ h.user }}</td><td class="text-muted">{{ h.notes }}</td><td class="text-center"><span class="badge badge-light-primary">{{ h.items }}</span></td><td class="text-end"><a href="/admin/stock-opname/{{ h.id }}/print" target="_blank" class="btn btn-sm btn-light-primary"><i class="ki-outline ki-printer fs-5"></i> Cetak</a></td></tr>
+                        {% else %}<tr><td colspan="5" class="text-center text-muted py-5">Belum ada riwayat opname.</td></tr>{% endfor %}
                     </tbody>
                 </table>
             </div>

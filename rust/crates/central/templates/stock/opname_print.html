@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <title>Hasil Stock Opname — {{ date }}</title>
+    <style>
+        body{font-family:Arial,sans-serif;color:#111;margin:24px;font-size:13px}
+        h2{margin:0 0 2px}
+        .muted{color:#666;font-size:12px}
+        table{width:100%;border-collapse:collapse;margin-top:14px}
+        th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
+        th{background:#f3f3f3}
+        td.num{text-align:right}
+        .neg{color:#c00;font-weight:bold}.pos{color:#080;font-weight:bold}
+        .sign{margin-top:30px;font-size:12px}
+        @media print{.no-print{display:none}}
+    </style>
+</head>
+<body onload="window.print()">
+    <h2>{{ store }}</h2>
+    <div class="muted">Hasil Stock Opname</div>
+    <div class="muted">Tanggal: {{ date }} &nbsp;|&nbsp; Petugas: {{ petugas }}{% if notes %} &nbsp;|&nbsp; Catatan: {{ notes }}{% endif %}</div>
+    <table>
+        <thead><tr><th style="width:50px">No</th><th>Bahan</th><th class="num">Stok Sistem</th><th class="num">Stok Fisik</th><th class="num">Selisih</th></tr></thead>
+        <tbody>
+            {% for l in lines %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ l.ingredient }}</td>
+                <td class="num">{{ l.system }}</td>
+                <td class="num">{{ l.physical }}</td>
+                <td class="num {% if l.neg %}neg{% elif l.pos %}pos{% endif %}">{{ l.diff }}</td>
+            </tr>
+            {% else %}<tr><td colspan="5" style="text-align:center;color:#888">Tidak ada data.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+    <div class="sign">Diperiksa oleh: ______________________ &nbsp;&nbsp;&nbsp; Disetujui: ______________________</div>
+    <button class="no-print" onclick="window.print()" style="margin-top:20px;padding:8px 16px">Cetak</button>
+</body>
+</html>
