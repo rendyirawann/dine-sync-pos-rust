@@ -35,10 +35,11 @@
                                         <span class="fw-bold text-gray-800 fs-6 {% if it.status == 'done' %}text-decoration-line-through text-muted{% endif %}">{{ it.qty }}x {{ it.name }}</span>
                                         {% if it.notes %}<span class="fs-8 fw-bold text-danger fst-italic"><i class="ki-outline ki-message-text-2 fs-8"></i> {{ it.notes }}</span>{% endif %}
                                     </div>
-                                    <div class="ms-2 text-end">
+                                    <div class="ms-2 text-end d-flex align-items-center gap-1">
                                         {% if it.status == 'pending' %}<span class="badge badge-light-warning fs-9">Antre</span>
                                         {% elif it.status == 'cooking' %}<span class="badge badge-light-primary fs-9">Dimasak</span>
                                         {% else %}<i class="ki-outline ki-check-circle text-success fs-3"></i>{% endif %}
+                                        <button class="btn btn-icon btn-sm btn-light p-1" title="Lihat resep" onclick="showRecipe({{ it.detail_id }})"><i class="ki-outline ki-information-2 fs-5 text-muted"></i></button>
                                     </div>
                                 </div>
                                 {% endfor %}
@@ -70,7 +71,10 @@
                                 <span class="fs-8 text-muted fw-semibold">{{ o.customer_name }} &bull; #{{ o.invoice_no }}</span>
                             </div>
                         </div>
-                        <div class="card-body p-4 text-center"><span class="badge badge-light-success fs-7"><i class="ki-outline ki-check-circle text-success fs-4 me-1"></i> {{ o.order_status }}</span></div>
+                        <div class="card-body p-4 text-center">
+                            <span class="badge badge-light-success fs-7"><i class="ki-outline ki-check-circle text-success fs-4 me-1"></i> {{ o.order_status }}</span>
+                            {% if not offline %}<button class="btn btn-sm btn-light-info w-100 mt-3 fw-bold" onclick="recallFood({{ o.id }})"><i class="ki-outline ki-loudspeaker fs-5"></i> Panggil Ulang</button>{% endif %}
+                        </div>
                     </div></div>
                     {% else %}
                     <div class="col-12 text-center py-10"><h3 class="text-gray-500 fw-semibold">Belum ada pesanan selesai.</h3></div>
@@ -94,6 +98,23 @@
                     else { location.reload(); }
                 } else { Swal.fire('Gagal', res.error || 'Error', 'error'); }
             });
+    }
+    function recallFood(orderId) {
+        fetch('/admin/kitchen/recall', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' }, body: new URLSearchParams({ _token: CSRF, order_id: orderId }) })
+            .then(r => r.json()).then(res => {
+                if (res.success) { Swal.fire({ icon: 'success', title: 'Memanggil ulang...', timer: 1200, showConfirmButton: false }); }
+                else { Swal.fire('Gagal', res.error || 'Error', 'error'); }
+            });
+    }
+    function showRecipe(detailId) {
+        fetch('/admin/kitchen/recipe/' + detailId, { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json()).then(res => {
+                if (res.error) { Swal.fire('Info', res.error, 'info'); return; }
+                let rows = (res.items && res.items.length)
+                    ? res.items.map(i => `<tr><td class="text-start">${i.ingredient}</td><td class="text-end fw-bold">${i.qty} ${i.unit}</td></tr>`).join('')
+                    : '<tr><td colspan="2" class="text-muted">Belum ada resep untuk menu ini.</td></tr>';
+                Swal.fire({ title: `Resep: ${res.menu} (x${res.qty})`, html: `<table class="table table-sm"><thead><tr><th class="text-start">Bahan</th><th class="text-end">Kebutuhan</th></tr></thead><tbody>${rows}</tbody></table>`, confirmButtonText: 'Tutup' });
+            }).catch(() => Swal.fire('Gagal', 'Tidak bisa memuat resep.', 'error'));
     }
     // Realtime: order baru / perubahan → refresh layar dapur otomatis.
     (function () {

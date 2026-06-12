@@ -165,6 +165,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/kasir/print/{id}", get(kasir::print_receipt))
         .route("/admin/kitchen", get(kitchen::index))
         .route("/admin/kitchen/order-status", post(kitchen::order_status))
+        .route("/admin/kitchen/recall", post(kitchen::recall))
+        .route("/admin/kitchen/recipe/{id}", get(kitchen::recipe_details))
         .route("/admin/categories", get(master::categories_index).post(master::category_store))
         .route("/admin/categories/{id}", post(master::category_update))
         .route("/admin/categories/{id}/delete", post(master::category_delete))

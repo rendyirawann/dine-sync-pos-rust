@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Form, State},
+    extract::{Form, Path, State},
     response::{Html, IntoResponse, Response},
     Json,
 };
@@ -209,6 +209,7 @@ pub async fn order_status(user: CurrentUser, State(state): State<AppState>, sess
     if let Err(e) = crate::stock::deduct_order_stock(&mut tx, form.order_id).await {
         return Json(json!({"success": false, "error": format!("Gagal potong stok: {e}")})).into_response();
     }
+    // (handler order_status berlanjut di bawah)
     match tx.commit().await {
         Ok(_) => {
             crate::realtime::kitchen_update(&state);
@@ -226,4 +227,68 @@ pub async fn order_status(user: CurrentUser, State(state): State<AppState>, sess
         }
         Err(e) => Json(json!({"success": false, "error": e.to_string()})).into_response(),
     }
+}
+
+#[derive(Deserialize)]
+pub struct RecallForm {
+    #[serde(rename = "_token", default)]
+    csrf: String,
+    order_id: i64,
+}
+/// POST /admin/kitchen/recall — umumkan ulang pesanan yang sudah selesai (TTS).
+pub async fn recall(user: CurrentUser, State(state): State<AppState>, session: Session, Form(form): Form<RecallForm>) -> Response {
+    if !user.can("view_kitchen") {
+        return Json(json!({"success": false, "error": "Tidak punya izin dapur"})).into_response();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Json(json!({"success": false, "error": "Sesi kedaluwarsa"})).into_response();
+    }
+    if let Ok(Some((name, invoice))) = sqlx::query_as::<_, (Option<String>, String)>("SELECT customer_name, invoice_no FROM orders WHERE id=$1")
+        .bind(form.order_id)
+        .fetch_optional(&state.pool)
+        .await
+    {
+        let num = invoice.split('-').nth(1).unwrap_or("").to_string();
+        crate::realtime::food_ready(&state, &name.unwrap_or_else(|| "Pelanggan".into()), &num);
+    }
+    Json(json!({"success": true})).into_response()
+}
+
+#[derive(Serialize)]
+struct RecipeItem {
+    ingredient: String,
+    qty: String,
+    unit: String,
+}
+/// GET /admin/kitchen/recipe/{detail_id} — bahan baku satu item order (utk koki).
+pub async fn recipe_details(user: CurrentUser, State(state): State<AppState>, Path(detail_id): Path<i64>) -> Response {
+    if !user.can("view_kitchen") {
+        return Json(json!({"error": "Tidak punya izin"})).into_response();
+    }
+    let row: Option<(i64, i64, Option<String>)> = sqlx::query_as(
+        "SELECT od.menu_id, od.qty::bigint, m.name FROM order_details od JOIN menus m ON m.id=od.menu_id WHERE od.id=$1",
+    )
+    .bind(detail_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+    let Some((menu_id, qty, menu_name)) = row else {
+        return Json(json!({"error": "Item tidak ditemukan"})).into_response();
+    };
+    let items: Vec<RecipeItem> = sqlx::query_as::<_, (String, String, f64)>(
+        "SELECT i.name, i.unit, mi.quantity::float8 FROM menu_ingredients mi JOIN ingredients i ON i.id=mi.ingredient_id WHERE mi.menu_id=$1 ORDER BY i.name",
+    )
+    .bind(menu_id)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(name, unit, q)| {
+        let total = q * qty as f64;
+        let qty_str = if total.fract().abs() < 1e-9 { format!("{}", total.round() as i64) } else { format!("{total:.2}") };
+        RecipeItem { ingredient: name, unit, qty: qty_str }
+    })
+    .collect();
+    Json(json!({"menu": menu_name.unwrap_or_default(), "qty": qty, "items": items})).into_response()
 }
