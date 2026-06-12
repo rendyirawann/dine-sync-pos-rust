@@ -256,11 +256,12 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [x] **Log Activity** SELESAI 2026-06-10 (`logactivity.rs`, `help/log_activity.html`): viewer `activity_log` (causer, ip, agent dari properties JSON), Superadmin lihat semua / lainnya hanya miliknya. *Catatan:* ban/unban + logging per-aksi CRUD belum diport (incremental).
 - [x] **Stock / Inventory** SELESAI 2026-06-10 (`stock.rs` + `stock/{stocks,recipes,recipe,opname,ledger}.html`): Stok Masuk (batch FEFO), Resep Menu (BOM), Stock Opname (sesuaikan loss FEFO / gain top-up/buat batch), Kartu Stok. **Potong stok FEFO saat dapur "cooking"/"done"** (idempoten `is_stock_deducted`, transaksional, `FOR UPDATE` anti-balapan), kurang stok → clamp + catat `out_of_stock` (tak blok jual). Konflik delta offline diselesaikan server (order offline ter-sync → dimasak di pusat → terpotong sekali). Direview adversarial (7 temuan) & diperbaiki.
 
-### Fase 5 — Integrasi & Polish
-- [ ] Midtrans (server pusat, online-only).
-- [ ] PDF, QR, DataTables endpoints, activity log.
-- [ ] WebSocket real-time pusat.
-- [ ] Packaging installer (.exe) per device.
+### Fase 5 — Integrasi & Polish ✅ SELESAI 2026-06-12
+- [x] **Midtrans** (online, customer self-order) — `midtrans.rs`: Snap token (REST API + Basic auth) + webhook `/api/midtrans-webhook` (verifikasi sha512, map status). Terverifikasi sandbox (token nyata + webhook→paid).
+- [x] **Real-time WebSocket + TTS** — `realtime.rs` hub broadcast native axum (`/ws`), ganti Reverb. Panggil antrian/pesanan-siap via `speechSynthesis` (id-ID), layar TV/antrian/dapur auto-refresh.
+- [x] **PDF/Cetak** — pendekatan cetak-browser (offline-friendly, tanpa dep PDF): struk kasir + QR meja + laporan (tombol Cetak/PDF + `@media print`). QR & activity-log sudah selesai sebelumnya.
+- [x] **Packaging .exe standalone** — template embedded (`rust-embed`), path aset/storage/db/.env relatif exe, `rust/package.ps1` (bundle dist) + `rust/installer.iss` (Inno Setup opsional). Terverifikasi jalan standalone.
+- [~] DataTables AJAX endpoints — TIDAK diport (sengaja; tabel server-rendered).
 
 ### Fase 6 — Cutover
 - [ ] Jalankan berdampingan dgn Laravel (strangler) per device.
@@ -287,10 +288,11 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [x] **Fase 2** — Slice Kasir (online) ✅ 2026-06-10
 - [~] **Fase 3** — Local-first (CORE/write-path ✅ 2026-06-10; read-offline + pull + konflik stok = sisa)
 - [x] **Fase 4 SELESAI** — Lebarkan modul (Kitchen, Master Data, Expense, Laporan, User/Role, Queue, Customer-QR, Log Activity, **Stock/Inventory** ✅ 2026-06-10)
-- [ ] **Fase 5** — Integrasi & polish
+- [x] **Fase 5 SELESAI** — Midtrans, real-time WS+TTS, packaging .exe, cetak/PDF ✅ 2026-06-12
 - [ ] **Fase 6** — Cutover
 
 **Log keputusan:**
+- 2026-06-12 — **Fase 5 SELESAI (keseluruhan).** (1) **Midtrans** `midtrans.rs`: `create_snap_token` (POST {base}/snap/v1/transactions, Basic base64(server_key:), reqwest+rustls) + `verify_signature` sha512(order_id+status_code+gross_amount+server_key) + webhook publik `/api/midtrans-webhook` (map settlement/capture→paid, pending→unpaid, deny/expire/cancel→failed). Customer checkout dapat pilih pay_later/midtrans; menu.html muat snap.js+tombol Bayar Online+snap.pay. Kunci dari env (MIDTRANS_*). Terverifikasi sandbox: token nyata, webhook valid→paid/invalid→403. (2) **Real-time** `realtime.rs`: hub `tokio::broadcast` + `/ws` (axum ws), event call-event(TTS)/new-queue/kitchen-update; dispatch dari queue(panggil/kiosk), kitchen(selesai), order baru (kasir/customer/sync). display.html: speechSynthesis id-ID (eja A-0-0-1) + overlay aktivasi suara. Terverifikasi klien WS terima event+TTS. Ganti Reverb total. (3) **Packaging** `rust-embed` (template tertanam saat release, live-disk saat debug), path aset/storage/local.db/.env relatif `current_exe()` (fallback dev), `package.ps1` (dist ~114MB) + `installer.iss` (Inno opsional). Terverifikasi central.exe rilis jalan standalone dari folder dist tanpa pohon sumber (login+dashboard 200). (4) **Cetak/PDF** = cetak-browser (struk/QR/laporan + `@media print`), tanpa dep PDF. **GOTCHA tes:** server detached via Start-Process kadang mati antar tool-call → gabung launch+test dalam 1 call; Invoke-WebRequest checkout WAJIB sertakan `-WebSession` (cookie sesi) atau CSRF gagal 403.
 - 2026-06-09 — Sepakat rewrite Rust local-first, pertahankan Metronic, stack Axum+SQLx+Tera, SQLite lokal + Postgres pusat. Toolchain Rust belum terinstal.
 - 2026-06-09 — Skala dikonfirmasi: **1 outlet, tanpa multi-tenant**. Scan QR customer **online-only** (tidak offline). Project di-push ke GitHub: `rendyirawann/dine-sync-pos-rust`. Mulai Fase 0.
 - 2026-06-09 — **Fase 0 SELESAI.** Toolchain: GNU + WinLibs MinGW-w64 (perlu `dlltool` utk `windows-sys`, `gcc` utk SQLite nanti). Stack pure-Rust terbukti jalan (Axum 0.8 + SQLx 0.9 postgres tanpa TLS + Tera 1.20). Server `rust/crates/central` render Metronic dari Postgres di :8088.
