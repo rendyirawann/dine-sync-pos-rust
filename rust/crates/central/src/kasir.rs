@@ -366,6 +366,10 @@ pub async fn create_order(
     ctx.insert("tax_rate", &tax_rate);
     ctx.insert("csrf_token", &auth::ensure_csrf(&session).await);
     ctx.insert("offline", &!online);
+    // Midtrans hanya saat online + terkonfigurasi.
+    ctx.insert("midtrans_enabled", &(online && !state.midtrans_server_key.is_empty()));
+    ctx.insert("midtrans_client", &state.midtrans_client_key);
+    ctx.insert("midtrans_production", &state.midtrans_production);
 
     render(&state, "kasir/order.html", &ctx)
 }
@@ -384,6 +388,18 @@ pub async fn store_order(
     if crate::sync::central_online(&state).await {
         match store_inner(&state, &payload).await {
             Ok((order_id, kind)) => {
+                // Bayar online: minta Snap token utk order yang baru dibuat.
+                if payload.payment_method == "midtrans" {
+                    if let Ok(Some((inv, grand))) = sqlx::query_as::<_, (String, i64)>("SELECT invoice_no, grand_total::bigint FROM orders WHERE id=$1").bind(order_id).fetch_optional(&state.pool).await {
+                        match crate::midtrans::create_snap_token(&state, &inv, grand, &payload.customer_name).await {
+                            Ok(token) => {
+                                let _ = sqlx::query("UPDATE orders SET snap_token=$1, updated_at=now() WHERE id=$2").bind(&token).bind(order_id).execute(&state.pool).await;
+                                return Json(json!({"success": true, "type": "midtrans", "order_id": order_id, "snap_token": token})).into_response();
+                            }
+                            Err(e) => return Json(json!({"success": true, "type": "pay_later", "order_id": order_id, "offline": false, "message": format!("Pembayaran online gagal: {e}. Order tersimpan — tagih manual.")})).into_response(),
+                        }
+                    }
+                }
                 let message = if kind == "cash" { "Pembayaran tunai berhasil!" } else { "Pesanan dikirim ke dapur (Pay Later)." };
                 Json(json!({"success": true, "type": kind, "order_id": order_id, "offline": false, "message": message})).into_response()
             }
@@ -469,8 +485,28 @@ pub async fn pay_existing(
     if !auth::verify_csrf(&session, &form.csrf).await {
         return Json(json!({"success": false, "error": "Sesi kedaluwarsa"})).into_response();
     }
-    if form.payment_method != "cash" {
-        return Json(json!({"success": false, "error": "Metode belum didukung (Midtrans = Fase 5)."})).into_response();
+    // Bayar online: buat Snap token utk order yang sudah ada (invoice diberi suffix -R agar Midtrans reset).
+    if form.payment_method == "midtrans" {
+        if !crate::sync::central_online(&state).await {
+            return Json(json!({"success": false, "error": "Server offline — pembayaran online perlu koneksi."})).into_response();
+        }
+        let row: Option<(String, i64, Option<String>)> = sqlx::query_as(
+            "SELECT invoice_no || '-R' || lpad((floor(random()*900)+100)::int::text,3,'0'), grand_total::bigint, customer_name FROM orders WHERE id=$1",
+        )
+        .bind(form.order_id)
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None);
+        let Some((retry_inv, grand, cust)) = row else {
+            return Json(json!({"success": false, "error": "Order tidak ditemukan."})).into_response();
+        };
+        return match crate::midtrans::create_snap_token(&state, &retry_inv, grand, &cust.unwrap_or_else(|| "Pelanggan".into())).await {
+            Ok(token) => {
+                let _ = sqlx::query("UPDATE orders SET snap_token=$1, updated_at=now() WHERE id=$2").bind(&token).bind(form.order_id).execute(&state.pool).await;
+                Json(json!({"success": true, "type": "midtrans", "order_id": form.order_id, "snap_token": token})).into_response()
+            }
+            Err(e) => Json(json!({"success": false, "error": format!("Midtrans gagal: {e}")})).into_response(),
+        };
     }
     let res = sqlx::query("UPDATE orders SET payment_method='cash', payment_status='paid', updated_at=now() WHERE id=$1")
         .bind(form.order_id)

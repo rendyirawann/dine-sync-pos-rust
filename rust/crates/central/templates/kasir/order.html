@@ -75,6 +75,7 @@
                 <select id="payment_method" class="form-select form-select-solid">
                     <option value="pay_later">🍽️ Bayar Nanti (Pay Later)</option>
                     <option value="cash">💵 Tunai (Cash)</option>
+                    {% if midtrans_enabled %}<option value="midtrans">💳 Bayar Online (Midtrans QRIS/Transfer)</option>{% endif %}
                 </select></div>
             <div id="cash_input_area" class="fv-row mb-7" style="display:none;"><label class="required fs-6 fw-semibold mb-2">Nominal Uang Diterima (Rp)</label>
                 <input type="number" class="form-control form-control-solid" id="pay_amount" placeholder="0">
@@ -87,6 +88,7 @@
 
 {% block scripts %}
 <script>var CSRF = "{{ csrf_token }}"; var TAX_RATE = {{ tax_rate }};</script>
+{% if midtrans_enabled %}<script src="https://app.{% if not midtrans_production %}sandbox.{% endif %}midtrans.com/snap/snap.js" data-client-key="{{ midtrans_client }}"></script>{% endif %}
 {% raw %}
 <script>
     var cart = [], subtotalRaw = 0, taxRaw = 0, grandTotalRaw = 0;
@@ -175,7 +177,15 @@
             const showPrint = (oid) => Swal.fire({ title: 'Pembayaran Lunas!', text: 'Cetak struk?', icon: 'success', showCancelButton: true, confirmButtonColor: '#009ef7', cancelButtonColor: '#f1416c', confirmButtonText: 'Cetak Struk', cancelButtonText: 'Lewati', allowOutsideClick: false })
                 .then(r => { if (r.isConfirmed) window.open('/admin/kasir/print/' + oid, '_blank', 'width=400,height=600'); window.location.href = '/admin/kasir'; });
             if (res.offline) { Swal.fire({ title: '📴 Tersimpan Offline', text: res.message, icon: 'info', allowOutsideClick: false }).then(() => window.location.href = '/admin/kasir'); return; }
-            if (res.type === 'pay_later') Swal.fire({ title: 'Berhasil!', text: res.message, icon: 'success', allowOutsideClick: false }).then(() => window.location.href = '/admin/kasir');
+            if (res.type === 'midtrans' && window.snap) {
+                snap.pay(res.snap_token, {
+                    onSuccess: () => showPrint(res.order_id),
+                    onPending: () => Swal.fire('Menunggu', 'Pembayaran belum selesai. Status akan terupdate otomatis.', 'info').then(() => window.location.href = '/admin/kasir'),
+                    onError: () => { Swal.fire('Gagal', 'Pembayaran ditolak.', 'error'); window.location.href = '/admin/kasir'; },
+                    onClose: () => Swal.fire('Tertunda', 'Popup ditutup. Order berstatus Belum Bayar — bisa ditagih lagi dari peta meja.', 'warning').then(() => window.location.href = '/admin/kasir')
+                });
+            }
+            else if (res.type === 'pay_later') Swal.fire({ title: 'Berhasil!', text: res.message, icon: 'success', allowOutsideClick: false }).then(() => window.location.href = '/admin/kasir');
             else if (res.type === 'cash') showPrint(res.order_id);
         }).catch(() => { Swal.fire('Gagal!', 'Kesalahan jaringan.', 'error'); btn.disabled = false; btn.textContent = 'Proses Pembayaran'; });
     }
