@@ -294,8 +294,14 @@ pub async fn print_qr(user: CurrentUser, State(state): State<AppState>, headers:
     let Some((table_number, uuid)) = row else {
         return not_found("Meja tidak ditemukan");
     };
-    let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("127.0.0.1:8088");
-    let url = format!("http://{host}/scan/{uuid}");
+    // Pakai PUBLIC_URL (alamat publik VPS/domain) bila di-set; jika tidak, tebak dari host request.
+    let base = if !state.public_url.is_empty() {
+        state.public_url.clone()
+    } else {
+        let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("127.0.0.1:8088");
+        format!("http://{host}")
+    };
+    let url = format!("{base}/scan/{uuid}");
     let svg = qrcode::QrCode::new(url.as_bytes())
         .map(|c| c.render::<qrcode::render::svg::Color>().min_dimensions(260, 260).quiet_zone(true).build())
         .unwrap_or_else(|_| "<p>Gagal membuat QR</p>".into());

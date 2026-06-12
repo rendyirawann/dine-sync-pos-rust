@@ -60,6 +60,8 @@ pub struct AppState {
     pub midtrans_server_key: String,
     pub midtrans_client_key: String,
     pub midtrans_production: bool,
+    /// Alamat publik (mis. https://pos.toko.com) untuk QR pelanggan & callback Midtrans. Kosong = pakai host request.
+    pub public_url: String,
 }
 
 #[tokio::main]
@@ -129,6 +131,7 @@ async fn main() -> anyhow::Result<()> {
         midtrans_server_key: std::env::var("MIDTRANS_SERVER_KEY").unwrap_or_default(),
         midtrans_client_key: std::env::var("MIDTRANS_CLIENT_KEY").unwrap_or_default(),
         midtrans_production: std::env::var("MIDTRANS_IS_PRODUCTION").map(|v| v == "true").unwrap_or(false),
+        public_url: std::env::var("PUBLIC_URL").unwrap_or_default().trim_end_matches('/').to_string(),
     };
 
     // Background: auto-sync order lokal ke pusat tiap 30 detik.

@@ -39,6 +39,10 @@ Write-Host "==> Menulis .env.example, run.bat, README.txt"
 # Wajib: koneksi ke PostgreSQL pusat.
 DATABASE_URL=postgres://postgres:PASSWORD@HOST_PUSAT:5432/dinesync_pos_rust?sslmode=disable
 
+# Alamat publik aplikasi (untuk QR pelanggan & webhook Midtrans). Mis: https://pos.namatoko.com
+# Kosongkan bila hanya dipakai lokal (QR akan pakai host saat dicetak).
+PUBLIC_URL=
+
 # Opsional: pembayaran online (kosongkan untuk nonaktif).
 MIDTRANS_SERVER_KEY=
 MIDTRANS_CLIENT_KEY=

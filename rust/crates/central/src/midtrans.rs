@@ -26,13 +26,15 @@ pub async fn create_snap_token(state: &AppState, order_id: &str, gross_amount: i
         "transaction_details": { "order_id": order_id, "gross_amount": gross_amount },
         "customer_details": { "first_name": customer_name }
     });
-    let resp = reqwest::Client::new()
+    let mut req = reqwest::Client::new()
         .post(&url)
         .basic_auth(&state.midtrans_server_key, Some(""))
-        .header("Accept", "application/json")
-        .json(&body)
-        .send()
-        .await?;
+        .header("Accept", "application/json");
+    // Arahkan notifikasi/webhook Midtrans ke alamat publik kita (tanpa perlu set di dashboard).
+    if !state.public_url.is_empty() {
+        req = req.header("X-Override-Notification", format!("{}/api/midtrans-webhook", state.public_url));
+    }
+    let resp = req.json(&body).send().await?;
     let status = resp.status();
     let v: serde_json::Value = resp.json().await?;
     match v.get("token").and_then(|t| t.as_str()) {
