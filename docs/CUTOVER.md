@@ -49,18 +49,18 @@ Harus **semua OK** (27 halaman: dashboard, kasir, dapur, antrian, master data, s
 - Rust dan Laravel berbagi DB yang sama → **rollback = cukup buka kembali Laravel** (`php artisan serve --port=8300`) dan hentikan Rust. Tidak ada data yang perlu dikembalikan.
 - Bila data rusak: restore `backup_precutover.sql`.
 
-## 6. Backlog pasca-cutover (fitur Laravel yang belum diport)
+## 6. Backlog pasca-cutover
 
-Diurut dampak. Tidak ada yang memblokir operasi kasir inti; tutup sesuai kebutuhan.
+**Sudah ditutup 2026-06-12** (tidak lagi jadi celah): ✅ Midtrans sisi **kasir** (order baru + tagih order existing) · ✅ Dapur **panggil ulang (recall)** + **lihat resep** per item · ✅ **Cetak/PDF Stock Opname** (+ Laporan Sales/Items) · ✅ **Akun Saya** ganti password mandiri.
 
-| Prioritas | Fitur | Catatan / mitigasi sementara |
-|---|---|---|
-| Sedang | Midtrans sisi **kasir** untuk order dine-in yang sudah ada | Sisi pelanggan (scan-QR) sudah bisa Midtrans; kasir saat ini hanya tunai untuk order berjalan. |
-| Sedang | **Dapur**: recall (panggil ulang), status per-item, lihat resep dari layar dapur | Rust mengubah status seluruh order sekaligus + sudah ada suara "pesanan siap". |
-| Sedang | **PDF Stock Opname** | Laporan Sales/Items sudah bisa Cetak/PDF lewat browser; opname belum. |
-| Rendah | Reset password mandiri / lupa password (email) | Superadmin bisa **reset via Edit User** (set password baru) — sudah cukup utk 1 outlet. |
-| Rendah | Halaman "Akun Saya"/profil + ganti password sendiri + avatar | — |
-| Rendah | Drill-down audit per-user, mass-delete user/role, toggle cepat promo aktif/nonaktif | Log global + hapus satuan + edit promo sudah ada. |
+**Sisa (prioritas rendah, tidak memblokir; tutup bila perlu):**
+
+| Fitur | Catatan / mitigasi |
+|---|---|
+| Dapur: tandai **status per-item** (bukan seluruh order) | Saat ini "Masak Semua"/"Selesai" per order — cukup utk alur normal. |
+| **Lupa password** via email | Superadmin reset via Edit User + user ganti sendiri via Akun Saya — sudah cukup utk 1 outlet. |
+| **Avatar**/foto profil | Kosmetik. |
+| Drill-down audit **per-user**, **mass-delete** user/role, **toggle cepat** promo aktif/nonaktif | Log global + hapus satuan + edit promo sudah ada. |
 
 ## 7. Pensiunkan Laravel
 

@@ -48,7 +48,7 @@ $routes = @(
     "Pengaturan|/admin/settings", "Expenses|/admin/expenses", "Stok Masuk|/admin/stocks",
     "Stock Opname|/admin/stock-opname", "Kartu Stok|/admin/stock-movements",
     "Laporan Sales|/admin/reports/sales", "Laporan Items|/admin/reports/items",
-    "User Mgmt|/admin/users", "Role Mgmt|/admin/roles", "Log Activity|/admin/log-activity", "Sinkron|/admin/sync"
+    "User Mgmt|/admin/users", "Role Mgmt|/admin/roles", "Log Activity|/admin/log-activity", "Akun Saya|/admin/account", "Sinkron|/admin/sync"
 )
 foreach ($r in $routes) { $p = $r.Split('|'); Check $p[0] "$BaseUrl$($p[1])" $sess }
 
