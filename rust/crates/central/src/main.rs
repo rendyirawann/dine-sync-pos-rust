@@ -200,6 +200,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/queues/{id}/status", post(queue::admin_status))
         .route("/admin/tables/{id}/print-qr", get(customer::print_qr))
         .route("/admin/log-activity", get(logactivity::index))
+        .route("/admin/settings", get(master::settings_index).post(master::settings_update))
         .route("/admin/sync", get(sync::sync_page))
         .route("/admin/sync/now", post(sync::sync_run))
         .route("/admin/sync/toggle", post(sync::toggle_offline))

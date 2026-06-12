@@ -1,0 +1,23 @@
+{% extends "layout/app.html" %}
+{% block title %}Pengaturan Toko — DineSync POS{% endblock %}
+{% block content %}
+<div id="kt_app_content" class="app-content flex-column-fluid mt-5">
+    <div class="app-container container-xxl">
+        {% if flash_ok %}<div class="alert alert-success p-4 mb-5">{{ flash_ok }}</div>{% endif %}
+        {% if flash_err %}<div class="alert alert-danger p-4 mb-5">{{ flash_err }}</div>{% endif %}
+        <h1 class="fw-bold fs-2 mb-6"><i class="ki-outline ki-setting-2 fs-1 me-2"></i> Pengaturan Toko</h1>
+        <div class="card shadow-sm mw-700px"><div class="card-body">
+            <form method="POST" action="/admin/settings">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <div class="row g-4">
+                    <div class="col-md-12"><label class="form-label required fw-semibold">Nama Toko</label><input type="text" name="store_name" class="form-control form-control-solid" value="{{ s.store_name }}" required></div>
+                    <div class="col-md-12"><label class="form-label fw-semibold">Alamat</label><textarea name="address" class="form-control form-control-solid" rows="2">{{ s.address }}</textarea></div>
+                    <div class="col-md-6"><label class="form-label fw-semibold">Telepon</label><input type="text" name="phone" class="form-control form-control-solid" value="{{ s.phone }}"></div>
+                    <div class="col-md-6"><label class="form-label required fw-semibold">Pajak (%)</label><input type="number" name="tax_rate" class="form-control form-control-solid" value="{{ s.tax_rate }}" min="0" max="100" required><div class="form-text">Dipakai untuk menghitung total setiap order.</div></div>
+                </div>
+                <div class="text-end mt-6"><button type="submit" class="btn btn-primary"><i class="ki-outline ki-check fs-3"></i> Simpan Pengaturan</button></div>
+            </form>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

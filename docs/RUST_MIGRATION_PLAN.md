@@ -263,9 +263,13 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [x] **Packaging .exe standalone** — template embedded (`rust-embed`), path aset/storage/db/.env relatif exe, `rust/package.ps1` (bundle dist) + `rust/installer.iss` (Inno Setup opsional). Terverifikasi jalan standalone.
 - [~] DataTables AJAX endpoints — TIDAK diport (sengaja; tabel server-rendered).
 
-### Fase 6 — Cutover
-- [ ] Jalankan berdampingan dgn Laravel (strangler) per device.
-- [ ] Migrasi data, validasi, pensiunkan PHP.
+### Fase 6 — Cutover — 🚧 SIAP (runbook + perkakas selesai 2026-06-12)
+- **Tidak ada migrasi data**: Laravel & Rust pakai PostgreSQL yang sama (`dinesync_pos_rust`@5433) → cutover = ganti aplikasi yang dibuka + matikan Laravel.
+- [x] Runbook `docs/CUTOVER.md` (prasyarat, verifikasi, langkah go-live, rollback, backlog, pensiunkan PHP).
+- [x] Smoke test `rust/smoke-test.ps1` (cek 27 halaman utama; terverifikasi 27/27 OK).
+- [x] Audit paritas fitur Laravel↔Rust (alur POS inti 100% diport; celah minor terdokumentasi sbg backlog).
+- [x] Tutup celah kritis: **Editor Pengaturan Toko** (`/admin/settings` — nama/alamat/telp/**pajak%**, sebelumnya hanya bisa via DB).
+- [ ] Eksekusi go-live (operasional): backup DB → jalan berdampingan → beralih penuh → pensiunkan Laravel.
 
 ---
 
@@ -289,9 +293,10 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [~] **Fase 3** — Local-first (CORE/write-path ✅ 2026-06-10; read-offline + pull + konflik stok = sisa)
 - [x] **Fase 4 SELESAI** — Lebarkan modul (Kitchen, Master Data, Expense, Laporan, User/Role, Queue, Customer-QR, Log Activity, **Stock/Inventory** ✅ 2026-06-10)
 - [x] **Fase 5 SELESAI** — Midtrans, real-time WS+TTS, packaging .exe, cetak/PDF ✅ 2026-06-12
-- [ ] **Fase 6** — Cutover
+- [~] **Fase 6 SIAP** — runbook + smoke test + audit paritas + editor Pengaturan ✅ 2026-06-12; eksekusi go-live = operasional
 
 **Log keputusan:**
+- 2026-06-12 — **Fase 6 SIAP (cutover).** Temuan kunci: Laravel & Rust **berbagi PostgreSQL yang sama** (DB_DATABASE=dinesync_pos_rust @5433 di kedua .env) → **TIDAK ADA migrasi data**; cutover = ganti app + matikan Laravel. Artefak: `docs/CUTOVER.md` (runbook: backup→parallel→go-live→rollback→retire), `rust/smoke-test.ps1` (cek 27 halaman, hasil 27/27 OK). Audit paritas (sub-agent, Laravel routes/web.php+api.php vs main.rs): alur POS inti 100% diport; nilai tambah Rust = offline local-first + kartu stok + .exe. **Celah kritis ditutup: Editor Pengaturan Toko** (`master::settings_index`/`settings_update` + `master/settings.html` + route `/admin/settings`, gate view_data_master, upsert singleton, tax_rate clamp 0–100, audit-logged) — sebelumnya tax_rate hanya via DB. Backlog pasca-cutover (tak memblokir, di CUTOVER.md §6): Midtrans sisi-kasir utk order existing, dapur recall/per-item/lihat-resep, PDF opname, reset-password mandiri (mitigasi: superadmin reset via Edit User), My-Account/profil, drill-down audit per-user, mass-delete, toggle promo.
 - 2026-06-12 — **Fase 5 SELESAI (keseluruhan).** (1) **Midtrans** `midtrans.rs`: `create_snap_token` (POST {base}/snap/v1/transactions, Basic base64(server_key:), reqwest+rustls) + `verify_signature` sha512(order_id+status_code+gross_amount+server_key) + webhook publik `/api/midtrans-webhook` (map settlement/capture→paid, pending→unpaid, deny/expire/cancel→failed). Customer checkout dapat pilih pay_later/midtrans; menu.html muat snap.js+tombol Bayar Online+snap.pay. Kunci dari env (MIDTRANS_*). Terverifikasi sandbox: token nyata, webhook valid→paid/invalid→403. (2) **Real-time** `realtime.rs`: hub `tokio::broadcast` + `/ws` (axum ws), event call-event(TTS)/new-queue/kitchen-update; dispatch dari queue(panggil/kiosk), kitchen(selesai), order baru (kasir/customer/sync). display.html: speechSynthesis id-ID (eja A-0-0-1) + overlay aktivasi suara. Terverifikasi klien WS terima event+TTS. Ganti Reverb total. (3) **Packaging** `rust-embed` (template tertanam saat release, live-disk saat debug), path aset/storage/local.db/.env relatif `current_exe()` (fallback dev), `package.ps1` (dist ~114MB) + `installer.iss` (Inno opsional). Terverifikasi central.exe rilis jalan standalone dari folder dist tanpa pohon sumber (login+dashboard 200). (4) **Cetak/PDF** = cetak-browser (struk/QR/laporan + `@media print`), tanpa dep PDF. **GOTCHA tes:** server detached via Start-Process kadang mati antar tool-call → gabung launch+test dalam 1 call; Invoke-WebRequest checkout WAJIB sertakan `-WebSession` (cookie sesi) atau CSRF gagal 403.
 - 2026-06-09 — Sepakat rewrite Rust local-first, pertahankan Metronic, stack Axum+SQLx+Tera, SQLite lokal + Postgres pusat. Toolchain Rust belum terinstal.
 - 2026-06-09 — Skala dikonfirmasi: **1 outlet, tanpa multi-tenant**. Scan QR customer **online-only** (tidak offline). Project di-push ke GitHub: `rendyirawann/dine-sync-pos-rust`. Mulai Fase 0.

@@ -638,3 +638,80 @@ pub async fn ingredient_delete(user: CurrentUser, State(state): State<AppState>,
 fn opt(s: &Option<String>) -> Option<String> {
     s.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(String::from)
 }
+
+// ================= PENGATURAN TOKO (settings — singleton) =================
+#[derive(Serialize)]
+struct SettingsRow {
+    store_name: String,
+    address: String,
+    phone: String,
+    tax_rate: i64,
+}
+#[derive(Deserialize)]
+pub struct SettingsForm {
+    #[serde(rename = "_token", default)]
+    csrf: String,
+    #[serde(default)]
+    store_name: String,
+    #[serde(default)]
+    address: Option<String>,
+    #[serde(default)]
+    phone: Option<String>,
+    #[serde(default)]
+    tax_rate: i64,
+}
+
+pub async fn settings_index(user: CurrentUser, State(state): State<AppState>, session: Session, Query(f): Query<Flash>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    let row: Option<(String, Option<String>, Option<String>, i64)> =
+        sqlx::query_as("SELECT store_name, address, phone, tax_rate::bigint FROM settings ORDER BY id LIMIT 1")
+            .fetch_optional(&state.pool)
+            .await
+            .unwrap_or(None);
+    let s = row
+        .map(|(n, a, p, t)| SettingsRow { store_name: n, address: a.unwrap_or_default(), phone: p.unwrap_or_default(), tax_rate: t })
+        .unwrap_or(SettingsRow { store_name: "DineSync POS".into(), address: String::new(), phone: String::new(), tax_rate: 10 });
+    let mut ctx = ctx_with_flash(&state, &user, "master", &session, &f).await;
+    ctx.insert("s", &s);
+    render(&state, "master/settings.html", &ctx)
+}
+
+pub async fn settings_update(user: CurrentUser, State(state): State<AppState>, session: Session, Form(form): Form<SettingsForm>) -> Response {
+    if !user.can("view_data_master") {
+        return forbidden();
+    }
+    if !auth::verify_csrf(&session, &form.csrf).await {
+        return Redirect::to("/admin/settings?err=csrf").into_response();
+    }
+    let name = {
+        let t = form.store_name.trim();
+        if t.is_empty() { "DineSync POS".to_string() } else { t.to_string() }
+    };
+    let tax = form.tax_rate.clamp(0, 100);
+    // Upsert singleton: update baris pertama bila ada, jika tidak insert.
+    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM settings ORDER BY id LIMIT 1").fetch_optional(&state.pool).await.unwrap_or(None);
+    let r = if let Some(id) = existing {
+        sqlx::query("UPDATE settings SET store_name=$1, address=$2, phone=$3, tax_rate=$4::int, updated_at=now() WHERE id=$5")
+            .bind(&name)
+            .bind(opt(&form.address))
+            .bind(opt(&form.phone))
+            .bind(tax)
+            .bind(id)
+            .execute(&state.pool)
+            .await
+    } else {
+        sqlx::query("INSERT INTO settings (store_name, address, phone, tax_rate, created_at, updated_at) VALUES ($1, $2, $3, $4::int, now(), now())")
+            .bind(&name)
+            .bind(opt(&form.address))
+            .bind(opt(&form.phone))
+            .bind(tax)
+            .execute(&state.pool)
+            .await
+    };
+    if r.is_ok() {
+        crate::audit::log(&state, &user, "ubah pengaturan", &format!("Mengubah pengaturan toko (pajak {tax}%)")).await;
+    }
+    redirect_master("/admin/settings", r.is_ok(), "updated")
+}
