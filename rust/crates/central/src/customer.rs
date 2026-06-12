@@ -152,6 +152,9 @@ pub async fn menu_page(State(state): State<AppState>, session: Session, Path(uui
     ctx.insert("menus", &menus);
     ctx.insert("active_orders", &active);
     ctx.insert("tax_rate", &tax_rate);
+    ctx.insert("midtrans_enabled", &!state.midtrans_server_key.is_empty());
+    ctx.insert("midtrans_client", &state.midtrans_client_key);
+    ctx.insert("midtrans_production", &state.midtrans_production);
     render(&state, "customer/menu.html", &ctx)
 }
 
@@ -168,6 +171,8 @@ pub struct CheckoutPayload {
     #[serde(rename = "_token", default)]
     csrf: String,
     cart: Vec<CartLine>,
+    #[serde(default)]
+    payment_method: String, // "" / "pay_later" → bayar di kasir; "midtrans" → online
 }
 
 pub async fn checkout(State(state): State<AppState>, session: Session, Path(uuid): Path<String>, Json(payload): Json<CheckoutPayload>) -> Response {
@@ -212,11 +217,11 @@ pub async fn checkout(State(state): State<AppState>, session: Session, Path(uuid
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":"Gagal memproses pesanan."}))).into_response();
     };
     // Order: pay-later (payment_method NULL, unpaid), self-order pelanggan.
-    let order_id: Result<(i64,), _> = sqlx::query_as(
+    let order_row: Result<(i64, String), _> = sqlx::query_as(
         "INSERT INTO orders (uuid, invoice_no, table_id, promo_id, customer_name, order_type, subtotal, discount_amount, tax, grand_total, payment_method, payment_status, order_status, created_at, updated_at) \
          VALUES (gen_random_uuid(), \
             'INV-' || to_char(now(),'YYYYMMDDHH24MISS') || lpad((floor(random()*90)+10)::int::text, 2, '0'), \
-            $1, NULL, $2, 'dine_in', $3::numeric, 0, $4::numeric, $5::numeric, NULL, 'unpaid', 'pending', now(), now()) RETURNING id",
+            $1, NULL, $2, 'dine_in', $3::numeric, 0, $4::numeric, $5::numeric, NULL, 'unpaid', 'pending', now(), now()) RETURNING id, invoice_no",
     )
     .bind(table_id)
     .bind(&name)
@@ -225,7 +230,7 @@ pub async fn checkout(State(state): State<AppState>, session: Session, Path(uuid
     .bind(grand_total)
     .fetch_one(&mut *tx)
     .await;
-    let Ok((order_id,)) = order_id else {
+    let Ok((order_id, invoice_no)) = order_row else {
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":"Gagal menyimpan pesanan."}))).into_response();
     };
     for (menu_id, qty, price, note) in &lines {
@@ -248,6 +253,20 @@ pub async fn checkout(State(state): State<AppState>, session: Session, Path(uuid
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":"Gagal menyimpan pesanan."}))).into_response();
     }
     crate::realtime::kitchen_update(&state); // pesanan baru → layar dapur refresh
+
+    // Bayar online via Midtrans Snap (opsional).
+    if payload.payment_method == "midtrans" {
+        match crate::midtrans::create_snap_token(&state, &invoice_no, grand_total, &name).await {
+            Ok(token) => {
+                let _ = sqlx::query("UPDATE orders SET snap_token=$1, updated_at=now() WHERE id=$2").bind(&token).bind(order_id).execute(&state.pool).await;
+                return Json(json!({"type":"midtrans","snap_token":token})).into_response();
+            }
+            Err(e) => {
+                // Gagal buat token → order tetap tersimpan, jatuh balik ke bayar di kasir.
+                return Json(json!({"type":"pay_later","redirect":format!("/order-success/{uuid}"),"warn":format!("Pembayaran online gagal: {e}. Silakan bayar di kasir.")})).into_response();
+            }
+        }
+    }
     Json(json!({"type":"pay_later","redirect":format!("/order-success/{uuid}")})).into_response()
 }
 

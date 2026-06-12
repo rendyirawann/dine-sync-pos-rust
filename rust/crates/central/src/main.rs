@@ -6,6 +6,7 @@ mod kasir;
 mod kitchen;
 mod logactivity;
 mod master;
+mod midtrans;
 mod queue;
 mod rbac;
 mod realtime;
@@ -41,6 +42,9 @@ pub struct AppState {
     pub limiter: Arc<ratelimit::RateLimiter>,
     pub force_offline: Arc<std::sync::atomic::AtomicBool>,
     pub events: tokio::sync::broadcast::Sender<String>,
+    pub midtrans_server_key: String,
+    pub midtrans_client_key: String,
+    pub midtrans_production: bool,
 }
 
 #[tokio::main]
@@ -93,6 +97,9 @@ async fn main() -> anyhow::Result<()> {
         limiter: Arc::new(ratelimit::RateLimiter::default()),
         force_offline: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         events: tokio::sync::broadcast::channel::<String>(256).0,
+        midtrans_server_key: std::env::var("MIDTRANS_SERVER_KEY").unwrap_or_default(),
+        midtrans_client_key: std::env::var("MIDTRANS_CLIENT_KEY").unwrap_or_default(),
+        midtrans_production: std::env::var("MIDTRANS_IS_PRODUCTION").map(|v| v == "true").unwrap_or(false),
     };
 
     // Background: auto-sync order lokal ke pusat tiap 30 detik.
@@ -182,6 +189,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/menu/{uuid}", get(customer::menu_page))
         .route("/menu/{uuid}/checkout", post(customer::checkout))
         .route("/order-success/{uuid}", get(customer::success_page))
+        .route("/api/midtrans-webhook", post(midtrans::webhook))
         // Antrian publik: kiosk ambil nomor + layar TV.
         .route("/kiosk", get(queue::kiosk_page).post(queue::kiosk_take))
         .route("/kiosk/take", post(queue::kiosk_take))

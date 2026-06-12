@@ -13,6 +13,7 @@
         .cat-pills::-webkit-scrollbar{display:none}
         .cart-bar{position:fixed;bottom:0;left:0;right:0;z-index:20}
     </style>
+    {% if midtrans_enabled %}<script src="https://app.{% if not midtrans_production %}sandbox.{% endif %}midtrans.com/snap/snap.js" data-client-key="{{ midtrans_client }}"></script>{% endif %}
 </head>
 <body>
     <div class="bg-dark text-white p-5">
@@ -66,7 +67,8 @@
             <div class="d-flex justify-content-between w-100 mb-1"><span class="text-muted">Subtotal</span><span id="sSub">Rp 0</span></div>
             <div class="d-flex justify-content-between w-100 mb-3"><span class="text-muted">Pajak ({{ tax_rate }}%)</span><span id="sTax">Rp 0</span></div>
             <div class="d-flex justify-content-between w-100 mb-4 fs-4 fw-bold"><span>Total</span><span id="sGrand" class="text-primary">Rp 0</span></div>
-            <button class="btn btn-primary btn-lg w-100" id="checkoutBtn">Pesan Sekarang (Bayar di Kasir)</button>
+            <button class="btn btn-light-primary btn-lg w-100 mb-2" id="payLaterBtn">Pesan — Bayar di Kasir</button>
+            {% if midtrans_enabled %}<button class="btn btn-success btn-lg w-100" id="payOnlineBtn"><i class="ki-outline ki-credit-cart fs-2"></i> Bayar Online (Midtrans)</button>{% endif %}
         </div>
     </div></div></div>
 
@@ -119,17 +121,32 @@
         }
 
         document.getElementById('openCart').addEventListener('click', ()=>{ new bootstrap.Modal(document.getElementById('cartModal')).show(); });
-        document.getElementById('checkoutBtn').addEventListener('click', async function(){
+        async function doCheckout(method){
             const items = Object.values(cart).filter(i=>i.qty>0).map(i=>({id:i.id, qty:i.qty, note:i.note}));
             if(!items.length) return;
-            this.disabled = true; this.textContent = 'Memproses...';
+            const later = document.getElementById('payLaterBtn'), online = document.getElementById('payOnlineBtn');
+            [later, online].forEach(b=>{ if(b) b.disabled = true; });
             try {
-                const res = await fetch(`/menu/${UUID}/checkout`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({_token:TOKEN, cart:items})});
+                const res = await fetch(`/menu/${UUID}/checkout`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({_token:TOKEN, cart:items, payment_method:method})});
                 const data = await res.json();
-                if(data.redirect){ window.location = data.redirect; }
-                else { alert(data.error||'Gagal memesan'); this.disabled=false; this.textContent='Pesan Sekarang (Bayar di Kasir)'; }
-            } catch(e){ alert('Gagal terhubung ke server'); this.disabled=false; this.textContent='Pesan Sekarang (Bayar di Kasir)'; }
-        });
+                if(data.type === 'midtrans' && window.snap){
+                    snap.pay(data.snap_token, {
+                        onSuccess: ()=>{ window.location = `/order-success/${UUID}`; },
+                        onPending: ()=>{ window.location = `/order-success/${UUID}`; },
+                        onError: ()=>{ alert('Pembayaran gagal/ditolak.'); [later,online].forEach(b=>{if(b)b.disabled=false;}); },
+                        onClose: ()=>{ window.location = `/order-success/${UUID}`; }
+                    });
+                } else if(data.redirect){
+                    if(data.warn) alert(data.warn);
+                    window.location = data.redirect;
+                } else {
+                    alert(data.error||'Gagal memesan'); [later,online].forEach(b=>{if(b)b.disabled=false;});
+                }
+            } catch(e){ alert('Gagal terhubung ke server'); [later,online].forEach(b=>{if(b)b.disabled=false;}); }
+        }
+        document.getElementById('payLaterBtn').addEventListener('click', ()=>doCheckout('pay_later'));
+        const onlineBtn = document.getElementById('payOnlineBtn');
+        if(onlineBtn) onlineBtn.addEventListener('click', ()=>doCheckout('midtrans'));
     </script>
 </body>
 </html>
