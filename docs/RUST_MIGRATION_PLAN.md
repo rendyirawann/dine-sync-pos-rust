@@ -235,25 +235,25 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - **Acceptance:** ✅ **Terverifikasi end-to-end** — order tunai 25rb×2 → grand 55rb (pajak benar), paid, meja occupied, struk OK, **dashboard omzet Rp 55.000**; pay_later→unpaid→bayar-susulan→paid; clear ditolak saat item pending (400), sukses saat dapur selesai.
 - **Ditunda:** Midtrans (Fase 5), promo/diskon (opsional), potongan stok/HPP (Fase 4), status dapur real-time (Fase 4 kitchen).
 
-### Fase 3 — Local-First *(INTI)* — 🟡 CORE SELESAI 2026-06-10 (write-path), sisanya berlanjut
+### Fase 3 — Local-First *(INTI)* — ✅ SELESAI 2026-06-10 (scope Kasir+Kitchen offline; konflik stok via Fase 4)
 - [x] **SQLite lokal per-device** (`local.db`, dibuat saat startup) + Postgres `connect_lazy` (boot tetap jalan walau pusat mati).
 - [x] **Tangkap order offline**: saat pusat tak terjangkau, `store_order` → SQLite lokal (`store_order_local`), order pakai UUID (idempotensi).
 - [x] **Sync engine push** (`sync.rs`): order lokal → pusat, **idempoten via `ON CONFLICT (uuid)`** (re-sync tak dobel). Auto-sync 30 dtk + tombol "Sinkron Sekarang" + toggle simulasi offline (UI `/admin/sync`).
 - [x] **Acceptance INTI terverifikasi:** offline → order ke device (pusat tak berubah) → online → sync → pusat +1 → sync lagi → tetap (tanpa dobel). ✅
 - [x] **Kasir read-offline SELESAI 2026-06-10:** `pull_master` menarik meja/menu/kategori/setting ke SQLite (auto 30dtk + saat sync + boot). Saat offline, Kasir baca **peta meja + grid menu dari lokal** & bisa buat order; gerbang shift dilewati offline; banner "Mode OFFLINE". **Terverifikasi.**
 - [x] **Kitchen display offline SELESAI 2026-06-10** (baca antrian order lokal read-only). → **Scope offline (Kasir+Kitchen) LENGKAP** untuk read+write order.
-- [ ] **Sisa kecil:** resolusi **konflik stok delta** (bareng stock deduction Fase 4) + sync status dapur offline (refinement). Dashboard/laporan/master/user TETAP online-only.
-- **Catatan:** KASIR kini local-first penuh (baca+tulis offline + sync). Tinggal Kitchen offline (ikut Fase 4) + konflik stok.
+- [x] **Konflik stok delta SELESAI** (via Fase 4 Stock): deduksi FEFO diserialkan di pusat saat dapur memasak order yang ter-sync → terpotong sekali, `FOR UPDATE` cegah stok negatif. Sync status dapur offline = N/A (dapur offline read-only sesuai scope; perubahan status dilakukan online). Dashboard/laporan/master/user TETAP online-only.
+- **Catatan:** KASIR & KITCHEN kini local-first penuh (baca+tulis offline + sync). Scope offline yang disepakati LENGKAP.
 
-### Fase 4 — Lebarkan Modul — 🚧 SEDANG BERJALAN
-- [x] **Kitchen display** (`kitchen.rs`, `kitchen/index.html`) — SELESAI 2026-06-10: kartu order aktif (item + tab Selesai), tombol "Masak Semua"→cooking & "Selesai"→served+item done. **Offline:** baca antrian order lokal (read-only). Terverifikasi (pending→cooking→served). *Ditunda:* stock deduction (butuh resep/batch), Reverb TTS (Fase 5), modal resep.
+### Fase 4 — Lebarkan Modul — ✅ SELESAI 2026-06-10
+- [x] **Kitchen display** (`kitchen.rs`, `kitchen/index.html`) — SELESAI 2026-06-10: kartu order aktif (item + tab Selesai), tombol "Masak Semua"→cooking & "Selesai"→served+item done. **Offline:** baca antrian order lokal (read-only). Terverifikasi (pending→cooking→served). *(Potong stok FEFO, TTS pesanan-siap, panggil-ulang & lihat-resep per item kemudian SELESAI di Fase 4 Stock + Fase 5 + backlog 2026-06-12.)*
 - [x] **Master data CRUD LENGKAP** SELESAI 2026-06-10: **Kategori, Menu, Meja, Promo, Supplier, Bahan** (`master.rs`, `master/{categories,menus,tables,promos,suppliers,ingredients}.html`): list + tambah/edit (modal) + hapus dgn **guard relasi**, gate `view_data_master`, slug auto utk kategori. Semua terverifikasi (create/update/delete).
 - [x] **Expense + Budget/Target harian** SELESAI 2026-06-10 (`finance.rs`, `finance/expenses.html`): CRUD pengeluaran (modal) + set budget & target harian (upsert `ON CONFLICT(date)`), gate `view_finance`, user_id pencatat. Terintegrasi ke widget sidebar & dashboard (Operasional). Terverifikasi.
 - [x] **Report Sales + Item Sales** SELESAI 2026-06-10 (`report.rs`, `reports/{sales,items}.html`): filter rentang tanggal + metode, ringkasan omzet/HPP/laba/jumlah transaksi, tabel transaksi & menu terlaris. Gate `view_report`. Terverifikasi dgn data order tes.
 - [x] **User & Role Management** SELESAI 2026-06-10 (`usermgmt.rs`, `usermgmt/{users,roles}.html`): CRUD user (bcrypt hash, assign role via `model_has_roles`) + CRUD role dgn pilih permission (grouped by prefix), gate `view_resources`. Guard: tak bisa hapus diri sendiri / akun & role Superadmin / role yg masih terpasang ke user. Terverifikasi (termasuk login user baru via hash $2b$).
-- [x] **Queue / Antrian** SELESAI 2026-06-10 (`queue.rs`, `queue/{admin,kiosk,display}.html`): kiosk publik ambil nomor (prefix A/B/C by pax, urut per-hari) + dashboard admin (panggil/duduk/batal, gate `view_queue`) + layar TV publik (auto-refresh 10s). Reverb/TTS ditunda (Fase 5).
-- [x] **Frontend customer scan-QR** SELESAI 2026-06-10 (online-only) (`customer.rs`, `customer/{scan,menu,success,qr}.html`): /scan/{uuid} (isi nama→sesi) → /menu/{uuid} (kartu menu + keranjang + checkout) → /menu/{uuid}/checkout (buat order **pay-later**, harga divalidasi ulang dari DB anti-manipulasi) → /order-success. QR per-meja via crate `qrcode` (SVG) di `/admin/tables/{id}/print-qr` (encode `http://{host}/scan/{uuid}`). Midtrans ditunda (Fase 5).
-- [x] **Log Activity** SELESAI 2026-06-10 (`logactivity.rs`, `help/log_activity.html`): viewer `activity_log` (causer, ip, agent dari properties JSON), Superadmin lihat semua / lainnya hanya miliknya. *Catatan:* ban/unban + logging per-aksi CRUD belum diport (incremental).
+- [x] **Queue / Antrian** SELESAI 2026-06-10 (`queue.rs`, `queue/{admin,kiosk,display}.html`): kiosk publik ambil nomor (prefix A/B/C by pax, urut per-hari) + dashboard admin (panggil/duduk/batal, gate `view_queue`) + layar TV publik. *(Suara panggilan/TTS SELESAI di Fase 5 — WebSocket + speechSynthesis.)*
+- [x] **Frontend customer scan-QR** SELESAI 2026-06-10 (online-only) (`customer.rs`, `customer/{scan,menu,success,qr}.html`): /scan/{uuid} (isi nama→sesi) → /menu/{uuid} (kartu menu + keranjang + checkout) → /menu/{uuid}/checkout (buat order **pay-later**, harga divalidasi ulang dari DB anti-manipulasi) → /order-success. QR per-meja via crate `qrcode` (SVG) di `/admin/tables/{id}/print-qr` (encode `{PUBLIC_URL|host}/scan/{uuid}`). *(Midtrans pelanggan & kasir + URL publik PUBLIC_URL SELESAI di Fase 5.)*
+- [x] **Log Activity** SELESAI 2026-06-10 (`logactivity.rs`, `help/log_activity.html`): viewer `activity_log` (causer, ip, agent dari properties JSON), Superadmin lihat semua / lainnya hanya miliknya. *(Ban/unban + logging per-aksi CRUD kemudian SELESAI — lihat log 2026-06-10.)*
 - [x] **Stock / Inventory** SELESAI 2026-06-10 (`stock.rs` + `stock/{stocks,recipes,recipe,opname,ledger}.html`): Stok Masuk (batch FEFO), Resep Menu (BOM), Stock Opname (sesuaikan loss FEFO / gain top-up/buat batch), Kartu Stok. **Potong stok FEFO saat dapur "cooking"/"done"** (idempoten `is_stock_deducted`, transaksional, `FOR UPDATE` anti-balapan), kurang stok → clamp + catat `out_of_stock` (tak blok jual). Konflik delta offline diselesaikan server (order offline ter-sync → dimasak di pusat → terpotong sekali). Direview adversarial (7 temuan) & diperbaiki.
 
 ### Fase 5 — Integrasi & Polish ✅ SELESAI 2026-06-12
@@ -275,7 +275,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 
 ## 12. Risiko & Pertanyaan Terbuka
 
-- 🔴 **Konflik stok offline** = over-sell. Mitigasi: delta + peringatan + Stock Opname. Perlu disepakati toleransinya.
+- ✅ **RESOLVED — Konflik stok offline**: deduksi FEFO diserialkan di pusat saat dapur memasak (terpotong sekali per order), `FOR UPDATE` cegah balapan multi-device, kurang stok → clamp + catat `out_of_stock` (tak blok jual) + dikoreksi via Stock Opname.
 - 🟡 **Skema ganda** (SQLite + Postgres) harus selalu sinkron → satu sumber migrasi untuk dua target.
 - ✅ **RESOLVED — Frontend customer (scan QR)**: scan QR **online-only**. Tidak perlu jalan saat offline; fitur ini mati saat server pusat down dan aktif lagi saat online. Menyederhanakan desain (device tak perlu jadi host QR untuk HP customer).
 - ✅ **RESOLVED — Skala**: hanya **1 outlet**, **tanpa multi-tenant**. Sederhanakan: tidak perlu pemisahan data per-outlet.
@@ -290,7 +290,7 @@ Rewrite backend **Laravel 12 → Rust**, mempertahankan tampilan **Metronic** (s
 - [x] **Fase 0** — Fondasi ✅ 2026-06-09
 - [x] **Fase 1** — Auth + RBAC ✅ 2026-06-09
 - [x] **Fase 2** — Slice Kasir (online) ✅ 2026-06-10
-- [~] **Fase 3** — Local-first (CORE/write-path ✅ 2026-06-10; read-offline + pull + konflik stok = sisa)
+- [x] **Fase 3 SELESAI** — Local-first: write-path + read-offline + pull master + Kitchen offline + konflik stok (via Fase 4) ✅ 2026-06-10
 - [x] **Fase 4 SELESAI** — Lebarkan modul (Kitchen, Master Data, Expense, Laporan, User/Role, Queue, Customer-QR, Log Activity, **Stock/Inventory** ✅ 2026-06-10)
 - [x] **Fase 5 SELESAI** — Midtrans, real-time WS+TTS, packaging .exe, cetak/PDF ✅ 2026-06-12
 - [~] **Fase 6 SIAP** — runbook + smoke test + audit paritas + editor Pengaturan ✅ 2026-06-12; eksekusi go-live = operasional
