@@ -35,3 +35,11 @@ Thumbs.db
 # SQLite DB lokal (per-device, local-first)
 /rust/crates/central/local.db
 /rust/crates/central/local.db-*
+
+# Aplikasi mobile — masing-masing repo sendiri, bukan bagian dari repo ini:
+#   https://github.com/rendyirawann/dine-rust-be
+#   https://github.com/rendyirawann/dine-rust-fe
+# Klon keduanya ke mobile-dine-rust/ agar dev.bat menemukannya.
+# mobile-dine-rust/README.md TETAP ikut repo ini sebagai penjelasnya.
+/mobile-dine-rust/dine-rust-be/
+/mobile-dine-rust/dine-rust-fe/

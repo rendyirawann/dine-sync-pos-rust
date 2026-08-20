@@ -1,5 +1,15 @@
 * text=auto eol=lf
 
+# Skrip Windows WAJIB CRLF.
+#
+# Dengan akhiran baris LF, cmd.exe salah menghitung posisi baca berkas: setelah
+# `goto` keluar dari blok berkurung, eksekusi berlanjut di tempat yang salah dan
+# muncul galat seperti "The system cannot find the batch label specified".
+# Aturan `eol=lf` di atas akan mengubahnya jadi LF saat checkout, jadi berkas
+# ini harus dikecualikan secara eksplisit.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 *.blade.php diff=html
 *.css diff=css
 *.html diff=html
